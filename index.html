@@ -1,0 +1,1058 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Rendicontazione Contratti – v1.4</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+
+  <style>
+    :root{
+      --tiffany:#0ABAB5;
+      --bg:#f6f8fb;
+      --card:#ffffff;
+      --text:#111827;
+      --muted:#6b7280;
+      --border:#e5e7eb;
+      --shadow: 0 12px 26px rgba(15,23,42,.08);
+    }
+    body{ background:var(--bg); color:var(--text); }
+    .topbar{
+      background: linear-gradient(90deg, var(--tiffany), #078f8a);
+      color:#fff;
+      padding:14px 16px;
+      border-bottom: 1px solid rgba(255,255,255,.15);
+    }
+    .topbar h1{ font-size:18px; margin:0; font-weight:900; letter-spacing:.2px; }
+    .topbar .sub{ opacity:.9; font-size:12px; margin-top:2px; }
+
+    .card{
+      border:1px solid var(--border);
+      border-radius:16px;
+      box-shadow: var(--shadow);
+      background: var(--card);
+    }
+    .hint{ color:var(--muted); font-size:13px; }
+    .btn-tiffany{
+      background:var(--tiffany); border-color:var(--tiffany); color:#fff;
+      font-weight:900;
+    }
+    .btn-tiffany:hover{ background:#089a94; border-color:#089a94; color:#fff; }
+
+    .table-wrap{
+      max-height: 66vh;
+      overflow:auto;
+      border-radius:14px;
+      border:1px solid var(--border);
+      background:#fff;
+    }
+    .table-wrap.pivot{
+      max-height: 38vh;
+    }
+
+    thead th{
+      position: sticky; top: 0; z-index: 2;
+      background: var(--tiffany) !important;
+      color:#fff !important;
+      border-color: rgba(255,255,255,.18) !important;
+      white-space: nowrap;
+      font-size:12px;
+    }
+    tbody td{
+      white-space: nowrap;
+      font-size:12px;
+      vertical-align: middle;
+    }
+    .num{ text-align:right; font-variant-numeric: tabular-nums; }
+    .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+
+    .chip{
+      display:inline-flex; align-items:center; gap:8px;
+      padding:7px 10px;
+      border-radius:999px;
+      border:1px solid var(--border);
+      background:#fff;
+      font-weight:800;
+      font-size:12px;
+    }
+    .chip button{
+      border:none; background:transparent;
+      font-weight:900; line-height:1;
+      cursor:pointer; color:#6b7280;
+    }
+    .chip button:hover{ color:#111827; }
+
+    .section-title{ font-weight:900; font-size:13px; letter-spacing:.2px; }
+    .mini-note{ font-size:12px; color:var(--muted); }
+    .divider{ height:1px; background:var(--border); margin:12px 0; }
+
+    .status-box{
+      border:1px solid var(--border);
+      border-radius:14px;
+      padding:10px 12px;
+      background:#fff;
+    }
+    .form-check-label{ font-weight:900; }
+
+    .btn-wa{
+      font-weight:900;
+      border:1px solid #cfe9e8;
+      background:#f2fffe;
+      color:#0b7b76;
+    }
+    .btn-wa:hover{
+      background:#e7fffd;
+      border-color:#aee1de;
+      color:#075e59;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="topbar">
+    <div class="container-fluid">
+      <h1>Rendicontazione Contratti</h1>
+      <div class="sub">Import Excel · AM → negozi · Export · Email · Dashboard OK</div>
+    </div>
+  </div>
+
+  <div class="container-fluid py-3">
+    <div class="row g-3">
+
+      <!-- CONTROLLI -->
+      <div class="col-12">
+        <div class="card p-3">
+          <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between">
+            <div>
+              <div class="section-title">Import file Excel</div>
+              <div class="hint">Seleziona il file rendicontazione. I negozi verranno associati automaticamente all’AM.</div>
+            </div>
+            <div class="d-flex flex-wrap gap-2">
+              <input id="fileInput" type="file" class="form-control" accept=".xlsx,.xls" style="max-width:340px;">
+              <button id="btnReset" class="btn btn-outline-danger">Reset</button>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="row g-2">
+            <div class="col-12 col-lg-3">
+              <div class="section-title mb-1">AM</div>
+              <select id="amFilter" class="form-select" disabled>
+                <option value="">Tutti</option>
+              </select>
+              <div class="mini-note mt-1">Seleziona un AM per vedere solo i suoi negozi.</div>
+            </div>
+
+            <div class="col-12 col-lg-6">
+              <div class="section-title mb-1">Negozi (scrivi e aggiungi)</div>
+              <div class="d-flex gap-2 flex-wrap">
+                <div class="flex-grow-1">
+                  <input id="dealerSearch" class="form-control" placeholder="Scrivi nome negozio e premi Aggiungi…" list="dealerList" disabled>
+                  <datalist id="dealerList"></datalist>
+                </div>
+                <button id="btnAddDealer" class="btn btn-tiffany" disabled>Aggiungi</button>
+                <button id="btnClearDealers" class="btn btn-outline-secondary" disabled>Svuota</button>
+              </div>
+              <div id="dealerChips" class="d-flex flex-wrap gap-2 mt-2"></div>
+              <div class="mini-note mt-1">Se non selezioni negozi, verranno mostrati tutti quelli consentiti dall’AM.</div>
+            </div>
+
+            <div class="col-12 col-lg-3">
+              <div class="section-title mb-1">Stato (tabella + export)</div>
+              <div class="status-box d-flex flex-wrap gap-3 align-items-center">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="stOK" disabled checked>
+                  <label class="form-check-label" for="stOK">OK</label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="stKO" disabled checked>
+                  <label class="form-check-label" for="stKO">KO</label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="stNF" disabled checked>
+                  <label class="form-check-label" for="stNF">NON FIRMATO</label>
+                </div>
+              </div>
+              <div class="mini-note mt-1">La Dashboard è sempre e solo su <strong>OK</strong>.</div>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="row g-2 align-items-start">
+            <div class="col-12 col-lg-6">
+              <div class="d-flex flex-wrap gap-2 align-items-center">
+                <span class="badge text-bg-secondary">Filtrate: <span id="statFiltered">0</span></span>
+                <span class="badge text-bg-success">Totale compensi: <span id="statTotal">€ 0,00</span></span>
+              </div>
+
+              <div class="mt-2">
+                <div class="section-title mb-1">Email destinatario (salvata per negozio)</div>
+                <div class="d-flex flex-wrap gap-2">
+                  <input id="emailTo" type="email" class="form-control" placeholder="es: amministrazione@dealer.it" disabled style="min-width:260px; flex:1;">
+                  <button id="btnSaveEmail" class="btn btn-outline-primary" disabled>Salva</button>
+                  <button id="btnClearEmail" class="btn btn-outline-secondary" disabled>Rimuovi</button>
+                </div>
+                <div class="mini-note mt-1">Gestibile solo quando hai selezionato <strong>1 negozio</strong> (un chip).</div>
+              </div>
+            </div>
+
+            <div class="col-12 col-lg-6">
+              <div class="section-title mb-1">Azioni</div>
+              <div class="d-flex flex-wrap gap-2 justify-content-lg-end">
+                <button id="btnExportXlsx" class="btn btn-outline-primary" disabled>Scarica Excel (filtrato)</button>
+                <button id="btnEmailDealer" class="btn btn-tiffany" disabled>Crea Excel negozio + Apri Mail</button>
+                <button id="btnBulkDownload" class="btn btn-outline-dark" disabled>Scarica TUTTI i negozi AM (file separati)</button>
+              </div>
+              <div class="mini-note mt-2 text-lg-end">
+                <span class="mono">mailto:</span> non allega automaticamente: dopo l’apertura mail allega il file appena scaricato.
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- DASHBOARD PIVOT -->
+      <div class="col-12">
+        <div class="card p-3">
+          <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+            <div>
+              <strong>Dashboard – OK per negozio</strong>
+              <div class="hint">Conteggio e fatturato calcolati su <strong>STATO = OK</strong> (rispettando AM e selezione negozi).</div>
+            </div>
+            <div class="d-flex flex-wrap gap-2 align-items-center">
+              <span class="badge text-bg-success">Tot OK: <span id="pivotTotalOk">0</span></span>
+              <span class="badge text-bg-dark">Tot fatturato: <span id="pivotTotalFatt">€ 0,00</span></span>
+              <span class="mini-note">Mese: <span id="pivotMonth" class="mono">—</span></span>
+            </div>
+          </div>
+
+          <div class="table-wrap pivot">
+            <table class="table table-sm table-hover table-striped align-middle">
+              <thead>
+                <tr>
+                  <th>DEALER</th>
+                  <th class="num">PRATICHE OK</th>
+                  <th class="num">TOTALE FATTURATO</th>
+                  <th style="min-width:160px;">WHATSAPP</th>
+                </tr>
+              </thead>
+              <tbody id="pivotBody"></tbody>
+            </table>
+          </div>
+
+          <div class="mini-note mt-2">
+            Il tasto WhatsApp invia un messaggio precompilato (senza numero) con mese, OK e totale.
+          </div>
+        </div>
+      </div>
+
+      <!-- TABELLA DETTAGLIO -->
+      <div class="col-12">
+        <div class="card p-3">
+          <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+            <div>
+              <strong>Tabella</strong>
+              <div class="hint">Mostra tutte le righe filtrate (scroll).</div>
+            </div>
+            <div class="mini-note">File: <span id="fileLabel" class="mono">—</span></div>
+          </div>
+
+          <div class="table-wrap">
+            <table class="table table-sm table-hover table-striped align-middle">
+              <thead><tr id="theadRow"></tr></thead>
+              <tbody id="tbody"></tbody>
+            </table>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+<script>
+/* =========================
+   CONFIG
+   ========================= */
+const BRAND_LABEL = "Acea";
+
+const COLUMN_MAP = {
+  "Codice Fiscale": "Codice Fiscale Cliente",
+  "Tipo Integration Case": "Tipo Integration Case",
+  "Integration Case Name": "Integration Case Name",
+  "Stato e Causale Annullamento": "Stato e Causale Annullamento",
+  "Causale annullamento": "Causale annullamento",
+  "Causale Annullamento": "Causale Annullamento"
+};
+
+const DESIRED_COLUMNS = [
+  "DEALER","AM","STATO","Nome opportunità","Stato PDC","Causale annullamento",
+  "Data creazione","Data firma","Tipo cliente","Partita IVA","Codice Fiscale",
+  "Ragione Sociale","Nome Cliente","Cognome Cliente","Billing Profile: Modalità di Pagamento",
+  "Categoria d'uso","Service Point Code","Prestazione","Indirizzo","Nome Prodotto",
+  "Tipo Integration Case","Stato e Causale Annullamento","Causale Ebdm","Causale Annullamento","Compenso"
+];
+
+const LS_EMAIL_MAP = "rendicontazione_dealerEmailMap_v1";
+
+/* =========================
+   STATE
+   ========================= */
+let rawRows = [];
+let filteredRows = [];
+let lastFilename = "";
+let monthLabel = "";
+let amToDealers = new Map();
+let selectedDealers = new Set();
+let dealerEmailMap = loadDealerEmailMap();
+
+/* =========================
+   UI
+   ========================= */
+const el = (id)=>document.getElementById(id);
+
+const fileInput = el("fileInput");
+const btnReset = el("btnReset");
+
+const amFilter = el("amFilter");
+
+const dealerSearch = el("dealerSearch");
+const dealerList = el("dealerList");
+const btnAddDealer = el("btnAddDealer");
+const btnClearDealers = el("btnClearDealers");
+const dealerChips = el("dealerChips");
+
+const stOK = el("stOK");
+const stKO = el("stKO");
+const stNF = el("stNF");
+
+const emailTo = el("emailTo");
+const btnSaveEmail = el("btnSaveEmail");
+const btnClearEmail = el("btnClearEmail");
+
+const btnExportXlsx = el("btnExportXlsx");
+const btnEmailDealer = el("btnEmailDealer");
+const btnBulkDownload = el("btnBulkDownload");
+
+const statFiltered = el("statFiltered");
+const statTotal = el("statTotal");
+
+const fileLabel = el("fileLabel");
+
+const theadRow = el("theadRow");
+const tbody = el("tbody");
+
+/* Pivot dashboard */
+const pivotBody = el("pivotBody");
+const pivotTotalOk = el("pivotTotalOk");
+const pivotTotalFatt = el("pivotTotalFatt");
+const pivotMonth = el("pivotMonth");
+
+/* =========================
+   HELPERS
+   ========================= */
+function fmtEUR(n){
+  const x = Number(n);
+  const v = Number.isFinite(x) ? x : 0;
+  return v.toLocaleString("it-IT", { style:"currency", currency:"EUR" });
+}
+function toNumber(v){
+  if (v === null || v === undefined || v === "") return 0;
+  if (typeof v === "number") return Number.isFinite(v) ? v : 0;
+  const s = String(v).trim().replace(/\./g,"").replace(",",".");
+  const n = Number(s);
+  return Number.isFinite(n) ? n : 0;
+}
+function fmtDate(v){
+  if (!v) return "";
+  if (v instanceof Date && !isNaN(v)) {
+    const dd = String(v.getDate()).padStart(2,"0");
+    const mm = String(v.getMonth()+1).padStart(2,"0");
+    const yy = v.getFullYear();
+    return `${dd}/${mm}/${yy}`;
+  }
+  const s = String(v).trim();
+  const d = new Date(s);
+  if (!isNaN(d)) return fmtDate(d);
+  return s;
+}
+function getCell(row, desiredLabel){
+  const realHeader = COLUMN_MAP[desiredLabel] || desiredLabel;
+  const val = row?.[realHeader];
+  if (desiredLabel === "Data creazione" || desiredLabel === "Data firma") return fmtDate(val);
+  return (val === undefined || val === null) ? "" : val;
+}
+function uniqueSorted(arr){
+  return Array.from(new Set(arr.filter(x => x !== null && x !== undefined && String(x).trim() !== "")))
+    .map(x => String(x).trim())
+    .sort((a,b) => a.localeCompare(b, "it"));
+}
+function escapeHtml(s){
+  return String(s)
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
+}
+function safeName(s){
+  return String(s||"")
+    .replace(/[^\w\-àèìòùÀÈÌÒÙ ]+/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+function computeTotal(rows){
+  return rows.reduce((acc,r) => acc + toNumber(getCell(r,"Compenso")), 0);
+}
+function capFirst(s){
+  const x = String(s||"").trim();
+  if (!x) return "";
+  return x.charAt(0).toUpperCase() + x.slice(1);
+}
+
+/* =========================
+   MONTH PARSE
+   ========================= */
+const IT_MONTHS = [
+  "gennaio","febbraio","marzo","aprile","maggio","giugno",
+  "luglio","agosto","settembre","ottobre","novembre","dicembre"
+];
+function parseMonthFromFilename(name){
+  const s = String(name||"").toLowerCase();
+  for (const m of IT_MONTHS){
+    if (s.includes(m)) return m;
+  }
+  return "";
+}
+function currentMonthIt(){
+  const d = new Date();
+  return IT_MONTHS[d.getMonth()] || "";
+}
+
+/* =========================
+   STATO normalizzazione
+   ========================= */
+function normStatus(v){
+  const s = String(v ?? "").trim().toUpperCase();
+  const clean = s.replace(/\s+/g, " ");
+  if (clean === "OK") return "OK";
+  if (clean === "KO") return "KO";
+  if (clean.includes("NON") && clean.includes("FIRM")) return "NON FIRMATO";
+  if (clean === "NONFIRMATO") return "NON FIRMATO";
+  if (clean === "NON FIRMATA") return "NON FIRMATO";
+  return clean;
+}
+function selectedStatusSet(){
+  const set = new Set();
+  if (stOK.checked) set.add("OK");
+  if (stKO.checked) set.add("KO");
+  if (stNF.checked) set.add("NON FIRMATO");
+  return set;
+}
+
+/* =========================
+   EMAIL MAP
+   ========================= */
+function loadDealerEmailMap(){
+  try{
+    const raw = localStorage.getItem(LS_EMAIL_MAP);
+    if (!raw) return {};
+    const obj = JSON.parse(raw);
+    return (obj && typeof obj === "object") ? obj : {};
+  }catch(e){ return {}; }
+}
+function saveDealerEmailMap(){
+  localStorage.setItem(LS_EMAIL_MAP, JSON.stringify(dealerEmailMap));
+}
+function isValidEmail(v){
+  const s = String(v ?? "").trim();
+  if (!s) return false;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+}
+function getSelectedSingleDealer(){
+  const arr = Array.from(selectedDealers);
+  return (arr.length === 1) ? arr[0] : "";
+}
+function syncEmailFromDealerSelection(){
+  const dealer = getSelectedSingleDealer();
+  if (!dealer){
+    emailTo.value = "";
+    btnSaveEmail.disabled = true;
+    btnClearEmail.disabled = true;
+    updateEmailButtonState();
+    return;
+  }
+  const saved = dealerEmailMap[dealer] || "";
+  emailTo.value = saved;
+  btnSaveEmail.disabled = !isValidEmail(emailTo.value);
+  btnClearEmail.disabled = !saved;
+  updateEmailButtonState();
+}
+function saveEmailForSelectedDealer(){
+  const dealer = getSelectedSingleDealer();
+  const mail = String(emailTo.value ?? "").trim();
+  if (!dealer){ alert("Seleziona 1 negozio (un chip)."); return; }
+  if (!isValidEmail(mail)){ alert("Inserisci un’email valida."); return; }
+  dealerEmailMap[dealer] = mail;
+  saveDealerEmailMap();
+  btnClearEmail.disabled = false;
+  updateEmailButtonState();
+  alert(`Email salvata per: ${dealer}`);
+}
+function clearEmailForSelectedDealer(){
+  const dealer = getSelectedSingleDealer();
+  if (!dealer) return;
+  if (dealerEmailMap[dealer]) delete dealerEmailMap[dealer];
+  saveDealerEmailMap();
+  emailTo.value = "";
+  btnClearEmail.disabled = true;
+  btnSaveEmail.disabled = true;
+  updateEmailButtonState();
+  alert(`Email rimossa per: ${dealer}`);
+}
+
+/* =========================
+   AM -> DEALER index
+   ========================= */
+function buildAmDealerIndex(){
+  amToDealers = new Map();
+  rawRows.forEach(r => {
+    const am = String(r["AM"] ?? "").trim();
+    const dealer = String(r["DEALER"] ?? "").trim();
+    if (!am || !dealer) return;
+    if (!amToDealers.has(am)) amToDealers.set(am, new Set());
+    amToDealers.get(am).add(dealer);
+  });
+}
+function populateAmFilter(){
+  const ams = uniqueSorted(rawRows.map(r => r["AM"]));
+  amFilter.innerHTML = `<option value="">Tutti</option>` + ams.map(x => `<option>${escapeHtml(x)}</option>`).join("");
+}
+function getDealersAllowedByAm(){
+  const am = amFilter.value.trim();
+  if (!am) return new Set(uniqueSorted(rawRows.map(r => r["DEALER"])));
+  return amToDealers.get(am) || new Set();
+}
+function refreshDealerDatalist(){
+  const allowed = getDealersAllowedByAm();
+  const list = Array.from(allowed).sort((a,b)=>a.localeCompare(b,"it"));
+  dealerList.innerHTML = list.map(d => `<option value="${escapeHtml(d)}"></option>`).join("");
+}
+function pruneSelectedDealersIfNeeded(){
+  const allowed = getDealersAllowedByAm();
+  selectedDealers = new Set(Array.from(selectedDealers).filter(d => allowed.has(d)));
+  renderDealerChips();
+}
+
+/* =========================
+   CHIPS UI
+   ========================= */
+function renderDealerChips(){
+  dealerChips.innerHTML = "";
+  const arr = Array.from(selectedDealers).sort((a,b)=>a.localeCompare(b,"it"));
+
+  btnClearDealers.disabled = (arr.length === 0);
+
+  if (!arr.length){
+    dealerChips.innerHTML = `<span class="mini-note">Nessun negozio selezionato.</span>`;
+  } else {
+    arr.forEach(name => {
+      const chip = document.createElement("span");
+      chip.className = "chip";
+      chip.innerHTML = `${escapeHtml(name)} <button title="Rimuovi">×</button>`;
+      chip.querySelector("button").addEventListener("click", () => {
+        selectedDealers.delete(name);
+        renderDealerChips();
+        syncEmailFromDealerSelection();
+        applyFilters();
+      });
+      dealerChips.appendChild(chip);
+    });
+  }
+  syncEmailFromDealerSelection();
+}
+
+/* =========================
+   TABLE RENDER
+   ========================= */
+function buildHeader(){
+  theadRow.innerHTML = "";
+  DESIRED_COLUMNS.forEach(col => {
+    const th = document.createElement("th");
+    th.textContent = col;
+    theadRow.appendChild(th);
+  });
+}
+function renderTable(){
+  tbody.innerHTML = "";
+  if (!filteredRows.length){
+    const tr = document.createElement("tr");
+    const td = document.createElement("td");
+    td.colSpan = DESIRED_COLUMNS.length;
+    td.className = "text-center text-muted py-4";
+    td.textContent = "Nessun dato con i filtri attuali.";
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+    return;
+  }
+
+  filteredRows.forEach(r => {
+    const tr = document.createElement("tr");
+    DESIRED_COLUMNS.forEach(col => {
+      const td = document.createElement("td");
+      const val = getCell(r, col);
+      if (col === "Compenso"){
+        td.classList.add("num","mono");
+        td.textContent = val === "" ? "" : fmtEUR(toNumber(val));
+      } else {
+        td.textContent = (val === undefined || val === null) ? "" : String(val);
+      }
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+}
+
+/* =========================
+   DASHBOARD PIVOT (OK)
+   ========================= */
+function getBaseScopeRowsForPivot(){
+  const am = amFilter.value.trim();
+  const allowedDealers = getDealersAllowedByAm();
+  const dealerSetActive = selectedDealers.size ? selectedDealers : null;
+
+  return rawRows.filter(r => {
+    const rAm = String(r["AM"] ?? "").trim();
+    const rDealer = String(r["DEALER"] ?? "").trim();
+
+    if (am && rAm !== am) return false;
+    if (am && !allowedDealers.has(rDealer)) return false;
+    if (dealerSetActive && !dealerSetActive.has(rDealer)) return false;
+
+    return true;
+  });
+}
+
+function buildPivotOk(){
+  pivotBody.innerHTML = "";
+  pivotMonth.textContent = capFirst(monthLabel || currentMonthIt() || "—");
+
+  if (!rawRows.length){
+    pivotTotalOk.textContent = "0";
+    pivotTotalFatt.textContent = "€ 0,00";
+    pivotBody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-4">Importa un file per vedere la dashboard.</td></tr>`;
+    return;
+  }
+
+  const scopeRows = getBaseScopeRowsForPivot();
+  const map = new Map(); // dealer -> { okCount, total }
+
+  scopeRows.forEach(r => {
+    const dealer = String(r["DEALER"] ?? "").trim();
+    if (!dealer) return;
+
+    const st = normStatus(r["STATO"]);
+    if (st !== "OK") return;
+
+    if (!map.has(dealer)) map.set(dealer, { okCount:0, total:0 });
+    const obj = map.get(dealer);
+    obj.okCount += 1;
+    obj.total += toNumber(getCell(r, "Compenso"));
+  });
+
+  const rows = Array.from(map.entries())
+    .map(([dealer, v]) => ({ dealer, okCount:v.okCount, total:v.total }))
+    .sort((a,b) => (b.okCount - a.okCount) || (b.total - a.total) || a.dealer.localeCompare(b.dealer,"it"));
+
+  const totOk = rows.reduce((acc,x)=>acc + x.okCount, 0);
+  const totFatt = rows.reduce((acc,x)=>acc + x.total, 0);
+
+  pivotTotalOk.textContent = String(totOk);
+  pivotTotalFatt.textContent = fmtEUR(totFatt);
+
+  if (!rows.length){
+    pivotBody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-4">Nessuna pratica OK nel perimetro selezionato.</td></tr>`;
+    return;
+  }
+
+  rows.forEach(r => {
+    const tr = document.createElement("tr");
+
+    const tdD = document.createElement("td");
+    tdD.textContent = r.dealer;
+    tr.appendChild(tdD);
+
+    const tdC = document.createElement("td");
+    tdC.className = "num mono";
+    tdC.textContent = String(r.okCount);
+    tr.appendChild(tdC);
+
+    const tdT = document.createElement("td");
+    tdT.className = "num mono";
+    tdT.textContent = fmtEUR(r.total);
+    tr.appendChild(tdT);
+
+    const tdW = document.createElement("td");
+    const btn = document.createElement("button");
+    btn.className = "btn btn-sm btn-wa";
+    btn.textContent = "Invia WhatsApp";
+    btn.addEventListener("click", () => sendWhatsAppPivot(r.dealer, r.okCount, r.total));
+    tdW.appendChild(btn);
+    tr.appendChild(tdW);
+
+    pivotBody.appendChild(tr);
+  });
+}
+
+function sendWhatsAppPivot(dealerName, okCount, totalAmount){
+  const mese = capFirst(monthLabel || currentMonthIt() || "");
+  const totalTxt = fmtEUR(totalAmount);
+
+  const text =
+`Ciao!
+È stata inviata la rendicontazione Acea per il mese di ${mese},
+hai prodotto ${okCount} contratti.
+Hai generato un totale di ${totalTxt}.
+Al tuo indirizzo mail trovi la fattura`;
+
+  const url = "https://wa.me/?text=" + encodeURIComponent(text);
+  window.open(url, "_blank", "noopener");
+}
+
+/* =========================
+   APPLY FILTERS (dettaglio)
+   ========================= */
+function applyFilters(){
+  const am = amFilter.value.trim();
+  const allowedDealers = getDealersAllowedByAm();
+  const dealerSetActive = selectedDealers.size ? selectedDealers : null;
+  const stSet = selectedStatusSet();
+
+  filteredRows = rawRows.filter(r => {
+    const rAm = String(r["AM"] ?? "").trim();
+    const rDealer = String(r["DEALER"] ?? "").trim();
+
+    if (am && rAm !== am) return false;
+    if (am && !allowedDealers.has(rDealer)) return false;
+
+    if (dealerSetActive && !dealerSetActive.has(rDealer)) return false;
+
+    const st = normStatus(r["STATO"]);
+    if (stSet.size > 0){
+      if (!stSet.has(st)) return false;
+    } else return false;
+
+    return true;
+  });
+
+  statFiltered.textContent = filteredRows.length;
+  statTotal.textContent = fmtEUR(computeTotal(filteredRows));
+  renderTable();
+
+  // dashboard sempre OK (ma stesso perimetro AM + chips)
+  buildPivotOk();
+
+  updateEmailButtonState();
+  updateBulkButtonState();
+}
+
+/* =========================
+   EXPORT
+   ========================= */
+function buildExportAoA(rows){
+  const aoa = [];
+  aoa.push(DESIRED_COLUMNS.slice());
+
+  rows.forEach(r => {
+    const line = DESIRED_COLUMNS.map(col => {
+      const v = getCell(r,col);
+      if (col === "Compenso") return (v === "" ? "" : toNumber(v));
+      return (v === undefined || v === null) ? "" : v;
+    });
+    aoa.push(line);
+  });
+
+  const total = computeTotal(rows);
+  const totalRow = Array(DESIRED_COLUMNS.length).fill("");
+  totalRow[0] = "TOTALE COMPENSI";
+  totalRow[DESIRED_COLUMNS.indexOf("Compenso")] = total;
+  aoa.push(totalRow);
+
+  return aoa;
+}
+
+function exportXlsx(rows, filename){
+  if (!rows.length) return;
+
+  const aoa = buildExportAoA(rows);
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+
+  const compIdx = DESIRED_COLUMNS.indexOf("Compenso");
+  for (let r = 2; r <= aoa.length; r++){
+    const cellAddr = XLSX.utils.encode_cell({ r: r-1, c: compIdx });
+    const cell = ws[cellAddr];
+    if (cell && typeof cell.v === "number"){
+      cell.t = "n";
+      cell.z = '#,##0.00';
+    }
+  }
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Rendicontazione");
+  XLSX.writeFile(wb, filename);
+}
+
+function buildDealerFilename(dealer){
+  const m = monthLabel || currentMonthIt();
+  const dealerSafe = safeName(dealer).slice(0, 60);
+  return `rendicontazione ${BRAND_LABEL} ${m} (${dealerSafe}).xlsx`;
+}
+
+/* =========================
+   EMAIL FLOW (no .eml)
+   ========================= */
+function updateEmailButtonState(){
+  const dealer = getSelectedSingleDealer();
+  const to = String(emailTo.value ?? "").trim();
+  const can = !!dealer && isValidEmail(to) && filteredRows.length > 0;
+  btnEmailDealer.disabled = !can;
+}
+
+function openMailtoMinimal(dealerName, recipientEmail, rowsForDealer){
+  const total = fmtEUR(computeTotal(rowsForDealer));
+  const body =
+`Ciao,
+
+in allegato la rendicontazione contratti del negozio:
+- DEALER: ${dealerName}
+- Totale compensi: ${total}
+
+Verifica produzione in allegato
+`;
+  const subject = `Rendicontazione contratti – ${dealerName}`;
+  const url = `mailto:${encodeURIComponent(recipientEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  window.location.href = url;
+}
+
+function emailFlowForSelectedDealer(){
+  const dealer = getSelectedSingleDealer();
+  const to = String(emailTo.value ?? "").trim();
+  if (!dealer || !isValidEmail(to)){
+    alert("Seleziona 1 negozio (un chip) e verifica l’email.");
+    return;
+  }
+
+  const rowsForDealer = filteredRows.filter(r => String(r["DEALER"] ?? "").trim() === dealer);
+  if (!rowsForDealer.length){
+    alert("Nessuna riga per il negozio selezionato con i filtri attuali.");
+    return;
+  }
+
+  const filename = buildDealerFilename(dealer);
+  exportXlsx(rowsForDealer, filename);
+
+  setTimeout(() => openMailtoMinimal(dealer, to, rowsForDealer), 350);
+}
+
+/* =========================
+   BULK DOWNLOAD (tutti negozi AM)
+   ========================= */
+function updateBulkButtonState(){
+  const am = amFilter.value.trim();
+  btnBulkDownload.disabled = !am;
+}
+
+async function bulkDownloadAllDealersForAm(){
+  const am = amFilter.value.trim();
+  if (!am){
+    alert("Seleziona un AM per scaricare tutti i suoi negozi.");
+    return;
+  }
+
+  const allowed = Array.from(getDealersAllowedByAm()).sort((a,b)=>a.localeCompare(b,"it"));
+  const stSet = selectedStatusSet();
+
+  const baseRows = rawRows.filter(r => {
+    const rAm = String(r["AM"] ?? "").trim();
+    if (rAm !== am) return false;
+    const st = normStatus(r["STATO"]);
+    if (stSet.size > 0){
+      if (!stSet.has(st)) return false;
+    } else return false;
+    return true;
+  });
+
+  let created = 0;
+
+  for (let i=0; i<allowed.length; i++){
+    const dealer = allowed[i];
+    const rowsForDealer = baseRows.filter(r => String(r["DEALER"] ?? "").trim() === dealer);
+    if (!rowsForDealer.length) continue;
+
+    const filename = buildDealerFilename(dealer);
+    exportXlsx(rowsForDealer, filename);
+    created++;
+
+    await new Promise(res => setTimeout(res, 260));
+  }
+
+  alert(created
+    ? `Creati ${created} file (uno per negozio).`
+    : "Nessun file creato: non ci sono righe per i negozi dell’AM con gli stati selezionati."
+  );
+}
+
+/* =========================
+   IMPORT XLSX
+   ========================= */
+function setEnabled(enabled){
+  [
+    amFilter,
+    dealerSearch, btnAddDealer, btnClearDealers,
+    stOK, stKO, stNF,
+    emailTo, btnSaveEmail, btnClearEmail,
+    btnExportXlsx, btnEmailDealer, btnBulkDownload
+  ].forEach(x => x.disabled = !enabled);
+}
+
+async function loadXlsxFile(file){
+  if (!file) return;
+  lastFilename = file.name || "";
+  fileLabel.textContent = lastFilename || "—";
+
+  monthLabel = parseMonthFromFilename(lastFilename) || "";
+  if (!monthLabel) monthLabel = currentMonthIt();
+
+  const buf = await file.arrayBuffer();
+  const wb = XLSX.read(buf, { type:"array", cellDates:true });
+  const sheetName = wb.SheetNames[0];
+  const ws = wb.Sheets[sheetName];
+
+  rawRows = XLSX.utils.sheet_to_json(ws, { defval:"" });
+
+  buildAmDealerIndex();
+  populateAmFilter();
+  refreshDealerDatalist();
+
+  amFilter.value = "";
+  selectedDealers.clear();
+  dealerSearch.value = "";
+  stOK.checked = true; stKO.checked = true; stNF.checked = true;
+
+  renderDealerChips();
+  setEnabled(true);
+
+  applyFilters();
+  updateBulkButtonState();
+  updateEmailButtonState();
+}
+
+/* =========================
+   EVENTI
+   ========================= */
+buildHeader();
+setEnabled(false);
+fileLabel.textContent = "—";
+statFiltered.textContent = "0";
+statTotal.textContent = "€ 0,00";
+pivotMonth.textContent = "—";
+pivotTotalOk.textContent = "0";
+pivotTotalFatt.textContent = "€ 0,00";
+renderTable();
+buildPivotOk();
+
+fileInput.addEventListener("change", (e) => loadXlsxFile(e.target.files?.[0]));
+
+btnReset.addEventListener("click", () => {
+  rawRows = [];
+  filteredRows = [];
+  lastFilename = "";
+  monthLabel = "";
+  amToDealers = new Map();
+  selectedDealers.clear();
+
+  fileInput.value = "";
+  fileLabel.textContent = "—";
+
+  amFilter.innerHTML = `<option value="">Tutti</option>`;
+  dealerList.innerHTML = "";
+  dealerSearch.value = "";
+
+  stOK.checked = true; stKO.checked = true; stNF.checked = true;
+
+  emailTo.value = "";
+  btnSaveEmail.disabled = true;
+  btnClearEmail.disabled = true;
+
+  setEnabled(false);
+
+  statFiltered.textContent = "0";
+  statTotal.textContent = "€ 0,00";
+
+  dealerChips.innerHTML = `<span class="mini-note">Nessun negozio selezionato.</span>`;
+  tbody.innerHTML = `<tr><td class="text-center text-muted py-4" colspan="${DESIRED_COLUMNS.length}">Importa un file per iniziare.</td></tr>`;
+
+  pivotMonth.textContent = "—";
+  pivotTotalOk.textContent = "0";
+  pivotTotalFatt.textContent = "€ 0,00";
+  pivotBody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-4">Importa un file per vedere la dashboard.</td></tr>`;
+});
+
+amFilter.addEventListener("change", () => {
+  refreshDealerDatalist();
+  pruneSelectedDealersIfNeeded();
+  applyFilters();
+});
+
+btnAddDealer.addEventListener("click", () => {
+  const name = String(dealerSearch.value ?? "").trim();
+  if (!name) return;
+
+  const allowed = getDealersAllowedByAm();
+  if (!allowed.has(name)){
+    alert("Questo negozio non è disponibile per l’AM selezionato (o non esiste nel file).");
+    return;
+  }
+  selectedDealers.add(name);
+  dealerSearch.value = "";
+  renderDealerChips();
+  applyFilters();
+});
+
+dealerSearch.addEventListener("keydown", (e) => {
+  if (e.key === "Enter"){ e.preventDefault(); btnAddDealer.click(); }
+});
+
+btnClearDealers.addEventListener("click", () => {
+  selectedDealers.clear();
+  renderDealerChips();
+  applyFilters();
+});
+
+[stOK, stKO, stNF].forEach(ch => ch.addEventListener("change", applyFilters));
+
+emailTo.addEventListener("input", () => {
+  const dealer = getSelectedSingleDealer();
+  btnSaveEmail.disabled = !(dealer && isValidEmail(emailTo.value));
+  updateEmailButtonState();
+});
+btnSaveEmail.addEventListener("click", saveEmailForSelectedDealer);
+btnClearEmail.addEventListener("click", clearEmailForSelectedDealer);
+
+btnExportXlsx.addEventListener("click", () => {
+  if (!filteredRows.length) return;
+  const filename = `rendicontazione ${BRAND_LABEL} ${monthLabel || currentMonthIt()} (FILTRATO).xlsx`;
+  exportXlsx(filteredRows, filename);
+});
+
+btnEmailDealer.addEventListener("click", emailFlowForSelectedDealer);
+btnBulkDownload.addEventListener("click", bulkDownloadAllDealersForAm);
+
+</script>
+</body>
+</html>
