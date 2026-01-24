@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Rendicontazione Contratti – v1.4</title>
+  <title>Rendicontazione Contratti – v1.5</title>
 
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
@@ -27,6 +27,30 @@
     }
     .topbar h1{ font-size:18px; margin:0; font-weight:900; letter-spacing:.2px; }
     .topbar .sub{ opacity:.9; font-size:12px; margin-top:2px; }
+    .top-actions{
+      margin-top:10px;
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+      align-items:center;
+    }
+    .tabbtn{
+      border:1px solid rgba(255,255,255,.35);
+      background: rgba(255,255,255,.14);
+      color:#fff;
+      font-weight:900;
+      padding:8px 12px;
+      border-radius:999px;
+      cursor:pointer;
+      transition: .15s ease;
+      font-size:12px;
+    }
+    .tabbtn:hover{ background: rgba(255,255,255,.22); }
+    .tabbtn.active{
+      background:#fff;
+      color:#075e59;
+      border-color:#fff;
+    }
 
     .card{
       border:1px solid var(--border);
@@ -48,9 +72,8 @@
       border:1px solid var(--border);
       background:#fff;
     }
-    .table-wrap.pivot{
-      max-height: 38vh;
-    }
+    .table-wrap.pivot{ max-height: 38vh; }
+    .table-wrap.emaildir{ max-height: 62vh; }
 
     thead th{
       position: sticky; top: 0; z-index: 2;
@@ -107,171 +130,284 @@
       border-color:#aee1de;
       color:#075e59;
     }
+
+    .pill-ok{
+      display:inline-flex; align-items:center; gap:6px;
+      padding:4px 8px;
+      border-radius:999px;
+      border:1px solid #bfecea;
+      background:#eafaf9;
+      color:#056e6a;
+      font-weight:900;
+      font-size:12px;
+    }
+    .pill-missing{
+      display:inline-flex; align-items:center; gap:6px;
+      padding:4px 8px;
+      border-radius:999px;
+      border:1px solid #f3d7d7;
+      background:#fff3f3;
+      color:#8b1a1a;
+      font-weight:900;
+      font-size:12px;
+    }
+
+    .view{ display:none; }
+    .view.active{ display:block; }
   </style>
 </head>
 
 <body>
   <div class="topbar">
     <div class="container-fluid">
-      <h1>Rendicontazione Contratti</h1>
-      <div class="sub">Import Excel · AM → negozi · Export · Email · Dashboard OK</div>
+      <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <div>
+          <h1>Rendicontazione Contratti</h1>
+          <div class="sub">Import Excel · Dashboard OK · Export · Email · Rubrica Negozi</div>
+        </div>
+        <div class="mini-note text-white-50">File: <span id="fileLabelTop" class="mono">—</span></div>
+      </div>
+
+      <div class="top-actions">
+        <button id="tabMain" class="tabbtn active" type="button">Rendicontazione</button>
+        <button id="tabEmails" class="tabbtn" type="button">Rubrica Email Negozi</button>
+      </div>
     </div>
   </div>
 
   <div class="container-fluid py-3">
-    <div class="row g-3">
+    <!-- VIEW: MAIN -->
+    <div id="viewMain" class="view active">
+      <div class="row g-3">
 
-      <!-- CONTROLLI -->
-      <div class="col-12">
-        <div class="card p-3">
-          <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between">
-            <div>
-              <div class="section-title">Import file Excel</div>
-              <div class="hint">Seleziona il file rendicontazione. I negozi verranno associati automaticamente all’AM.</div>
-            </div>
-            <div class="d-flex flex-wrap gap-2">
-              <input id="fileInput" type="file" class="form-control" accept=".xlsx,.xls" style="max-width:340px;">
-              <button id="btnReset" class="btn btn-outline-danger">Reset</button>
-            </div>
-          </div>
-
-          <div class="divider"></div>
-
-          <div class="row g-2">
-            <div class="col-12 col-lg-3">
-              <div class="section-title mb-1">AM</div>
-              <select id="amFilter" class="form-select" disabled>
-                <option value="">Tutti</option>
-              </select>
-              <div class="mini-note mt-1">Seleziona un AM per vedere solo i suoi negozi.</div>
-            </div>
-
-            <div class="col-12 col-lg-6">
-              <div class="section-title mb-1">Negozi (scrivi e aggiungi)</div>
-              <div class="d-flex gap-2 flex-wrap">
-                <div class="flex-grow-1">
-                  <input id="dealerSearch" class="form-control" placeholder="Scrivi nome negozio e premi Aggiungi…" list="dealerList" disabled>
-                  <datalist id="dealerList"></datalist>
-                </div>
-                <button id="btnAddDealer" class="btn btn-tiffany" disabled>Aggiungi</button>
-                <button id="btnClearDealers" class="btn btn-outline-secondary" disabled>Svuota</button>
+        <!-- CONTROLLI -->
+        <div class="col-12">
+          <div class="card p-3">
+            <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between">
+              <div>
+                <div class="section-title">Import file Excel</div>
+                <div class="hint">Seleziona il file rendicontazione. I negozi verranno associati automaticamente all’AM.</div>
               </div>
-              <div id="dealerChips" class="d-flex flex-wrap gap-2 mt-2"></div>
-              <div class="mini-note mt-1">Se non selezioni negozi, verranno mostrati tutti quelli consentiti dall’AM.</div>
+              <div class="d-flex flex-wrap gap-2">
+                <input id="fileInput" type="file" class="form-control" accept=".xlsx,.xls" style="max-width:340px;">
+                <button id="btnReset" class="btn btn-outline-danger">Reset</button>
+              </div>
             </div>
 
-            <div class="col-12 col-lg-3">
-              <div class="section-title mb-1">Stato (tabella + export)</div>
-              <div class="status-box d-flex flex-wrap gap-3 align-items-center">
-                <div class="form-check">
-                  <input class="form-check-input" type="checkbox" id="stOK" disabled checked>
-                  <label class="form-check-label" for="stOK">OK</label>
+            <div class="divider"></div>
+
+            <div class="row g-2">
+              <div class="col-12 col-lg-3">
+                <div class="section-title mb-1">AM</div>
+                <select id="amFilter" class="form-select" disabled>
+                  <option value="">Tutti</option>
+                </select>
+                <div class="mini-note mt-1">Seleziona un AM per vedere solo i suoi negozi.</div>
+              </div>
+
+              <div class="col-12 col-lg-6">
+                <div class="section-title mb-1">Negozi (scrivi e aggiungi)</div>
+                <div class="d-flex gap-2 flex-wrap">
+                  <div class="flex-grow-1">
+                    <input id="dealerSearch" class="form-control" placeholder="Scrivi nome negozio e premi Aggiungi…" list="dealerList" disabled>
+                    <datalist id="dealerList"></datalist>
+                  </div>
+                  <button id="btnAddDealer" class="btn btn-tiffany" disabled>Aggiungi</button>
+                  <button id="btnClearDealers" class="btn btn-outline-secondary" disabled>Svuota</button>
                 </div>
-                <div class="form-check">
-                  <input class="form-check-input" type="checkbox" id="stKO" disabled checked>
-                  <label class="form-check-label" for="stKO">KO</label>
+                <div id="dealerChips" class="d-flex flex-wrap gap-2 mt-2"></div>
+                <div class="mini-note mt-1">Se non selezioni negozi, verranno mostrati tutti quelli consentiti dall’AM.</div>
+              </div>
+
+              <div class="col-12 col-lg-3">
+                <div class="section-title mb-1">Stato (tabella + export)</div>
+                <div class="status-box d-flex flex-wrap gap-3 align-items-center">
+                  <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="stOK" disabled checked>
+                    <label class="form-check-label" for="stOK">OK</label>
+                  </div>
+                  <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="stKO" disabled checked>
+                    <label class="form-check-label" for="stKO">KO</label>
+                  </div>
+                  <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="stNF" disabled checked>
+                    <label class="form-check-label" for="stNF">NON FIRMATO</label>
+                  </div>
                 </div>
-                <div class="form-check">
-                  <input class="form-check-input" type="checkbox" id="stNF" disabled checked>
-                  <label class="form-check-label" for="stNF">NON FIRMATO</label>
+                <div class="mini-note mt-1">La Dashboard è sempre e solo su <strong>OK</strong>.</div>
+              </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="row g-2 align-items-start">
+              <div class="col-12 col-lg-6">
+                <div class="d-flex flex-wrap gap-2 align-items-center">
+                  <span class="badge text-bg-secondary">Filtrate: <span id="statFiltered">0</span></span>
+                  <span class="badge text-bg-success">Totale compensi: <span id="statTotal">€ 0,00</span></span>
+                </div>
+
+                <div class="mt-2">
+                  <div class="section-title mb-1">Email destinatario (salvata per negozio)</div>
+                  <div class="d-flex flex-wrap gap-2">
+                    <input id="emailTo" type="email" class="form-control" placeholder="es: amministrazione@dealer.it" disabled style="min-width:260px; flex:1;">
+                    <button id="btnSaveEmail" class="btn btn-outline-primary" disabled>Salva</button>
+                    <button id="btnClearEmail" class="btn btn-outline-secondary" disabled>Rimuovi</button>
+                  </div>
+                  <div class="mini-note mt-1">Gestibile solo quando hai selezionato <strong>1 negozio</strong> (un chip). Per gestione completa usa “Rubrica Email Negozi”.</div>
                 </div>
               </div>
-              <div class="mini-note mt-1">La Dashboard è sempre e solo su <strong>OK</strong>.</div>
+
+              <div class="col-12 col-lg-6">
+                <div class="section-title mb-1">Azioni</div>
+                <div class="d-flex flex-wrap gap-2 justify-content-lg-end">
+                  <button id="btnExportXlsx" class="btn btn-outline-primary" disabled>Scarica Excel (filtrato)</button>
+                  <button id="btnEmailDealer" class="btn btn-tiffany" disabled>Crea Excel negozio + Apri Mail</button>
+                  <button id="btnBulkDownload" class="btn btn-outline-dark" disabled>Scarica TUTTI i negozi AM (file separati)</button>
+                </div>
+                <div class="mini-note mt-2 text-lg-end">
+                  <span class="mono">mailto:</span> non allega automaticamente: dopo l’apertura mail allega il file appena scaricato.
+                </div>
+              </div>
             </div>
+
           </div>
+        </div>
 
-          <div class="divider"></div>
-
-          <div class="row g-2 align-items-start">
-            <div class="col-12 col-lg-6">
+        <!-- DASHBOARD PIVOT -->
+        <div class="col-12">
+          <div class="card p-3">
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+              <div>
+                <strong>Dashboard – OK per negozio</strong>
+                <div class="hint">Conteggio e fatturato calcolati su <strong>STATO = OK</strong> (rispettando AM e selezione negozi).</div>
+              </div>
               <div class="d-flex flex-wrap gap-2 align-items-center">
-                <span class="badge text-bg-secondary">Filtrate: <span id="statFiltered">0</span></span>
-                <span class="badge text-bg-success">Totale compensi: <span id="statTotal">€ 0,00</span></span>
+                <span class="badge text-bg-success">Tot OK: <span id="pivotTotalOk">0</span></span>
+                <span class="badge text-bg-dark">Tot fatturato: <span id="pivotTotalFatt">€ 0,00</span></span>
+                <span class="mini-note">Mese: <span id="pivotMonth" class="mono">—</span></span>
               </div>
+            </div>
 
-              <div class="mt-2">
-                <div class="section-title mb-1">Email destinatario (salvata per negozio)</div>
-                <div class="d-flex flex-wrap gap-2">
-                  <input id="emailTo" type="email" class="form-control" placeholder="es: amministrazione@dealer.it" disabled style="min-width:260px; flex:1;">
-                  <button id="btnSaveEmail" class="btn btn-outline-primary" disabled>Salva</button>
-                  <button id="btnClearEmail" class="btn btn-outline-secondary" disabled>Rimuovi</button>
+            <div class="table-wrap pivot">
+              <table class="table table-sm table-hover table-striped align-middle">
+                <thead>
+                  <tr>
+                    <th>DEALER</th>
+                    <th class="num">PRATICHE OK</th>
+                    <th class="num">TOTALE FATTURATO</th>
+                    <th style="min-width:160px;">WHATSAPP</th>
+                  </tr>
+                </thead>
+                <tbody id="pivotBody"></tbody>
+              </table>
+            </div>
+
+            <div class="mini-note mt-2">
+              Il tasto WhatsApp invia un messaggio precompilato (senza numero) con mese, OK e totale.
+            </div>
+          </div>
+        </div>
+
+        <!-- TABELLA DETTAGLIO -->
+        <div class="col-12">
+          <div class="card p-3">
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+              <div>
+                <strong>Tabella</strong>
+                <div class="hint">Mostra tutte le righe filtrate (scroll).</div>
+              </div>
+              <div class="mini-note">File: <span id="fileLabel" class="mono">—</span></div>
+            </div>
+
+            <div class="table-wrap">
+              <table class="table table-sm table-hover table-striped align-middle">
+                <thead><tr id="theadRow"></tr></thead>
+                <tbody id="tbody"></tbody>
+              </table>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- VIEW: EMAIL DIRECTORY -->
+    <div id="viewEmails" class="view">
+      <div class="row g-3">
+        <div class="col-12">
+          <div class="card p-3">
+            <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between">
+              <div>
+                <div class="section-title">Rubrica Email Negozi</div>
+                <div class="hint">
+                  Qui gestisci le email per <strong>tutti i negozi</strong>, capisci quali mancano e le inserisci rapidamente.
+                  I dati vengono salvati in <span class="mono">localStorage</span>.
                 </div>
-                <div class="mini-note mt-1">Gestibile solo quando hai selezionato <strong>1 negozio</strong> (un chip).</div>
+              </div>
+              <div class="d-flex flex-wrap gap-2 align-items-center">
+                <span class="badge text-bg-dark">Negozi: <span id="edTot">0</span></span>
+                <span class="badge text-bg-success">Con email: <span id="edWith">0</span></span>
+                <span class="badge text-bg-danger">Mancanti: <span id="edMissing">0</span></span>
               </div>
             </div>
 
-            <div class="col-12 col-lg-6">
-              <div class="section-title mb-1">Azioni</div>
-              <div class="d-flex flex-wrap gap-2 justify-content-lg-end">
-                <button id="btnExportXlsx" class="btn btn-outline-primary" disabled>Scarica Excel (filtrato)</button>
-                <button id="btnEmailDealer" class="btn btn-tiffany" disabled>Crea Excel negozio + Apri Mail</button>
-                <button id="btnBulkDownload" class="btn btn-outline-dark" disabled>Scarica TUTTI i negozi AM (file separati)</button>
+            <div class="divider"></div>
+
+            <div class="row g-2 align-items-end">
+              <div class="col-12 col-lg-3">
+                <div class="section-title mb-1">AM (perimetro rubrica)</div>
+                <select id="edAmFilter" class="form-select" disabled>
+                  <option value="">Tutti</option>
+                </select>
+                <div class="mini-note mt-1">Filtra la rubrica ai negozi dell’AM selezionato.</div>
               </div>
-              <div class="mini-note mt-2 text-lg-end">
-                <span class="mono">mailto:</span> non allega automaticamente: dopo l’apertura mail allega il file appena scaricato.
+
+              <div class="col-12 col-lg-5">
+                <div class="section-title mb-1">Ricerca negozio</div>
+                <input id="edSearch" class="form-control" placeholder="Cerca per nome negozio…" disabled>
+              </div>
+
+              <div class="col-12 col-lg-2">
+                <div class="section-title mb-1">Mostra</div>
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="edOnlyMissing" disabled>
+                  <label class="form-check-label fw-bold" for="edOnlyMissing">Solo mancanti</label>
+                </div>
+              </div>
+
+              <div class="col-12 col-lg-2 d-grid">
+                <button id="edReload" class="btn btn-outline-secondary" disabled>Aggiorna lista</button>
               </div>
             </div>
-          </div>
 
-        </div>
-      </div>
+            <div class="divider"></div>
 
-      <!-- DASHBOARD PIVOT -->
-      <div class="col-12">
-        <div class="card p-3">
-          <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
-            <div>
-              <strong>Dashboard – OK per negozio</strong>
-              <div class="hint">Conteggio e fatturato calcolati su <strong>STATO = OK</strong> (rispettando AM e selezione negozi).</div>
+            <div class="table-wrap emaildir">
+              <table class="table table-sm table-hover table-striped align-middle">
+                <thead>
+                  <tr>
+                    <th>DEALER</th>
+                    <th>AM</th>
+                    <th>EMAIL</th>
+                    <th>STATO</th>
+                    <th style="min-width:260px;">AZIONI</th>
+                  </tr>
+                </thead>
+                <tbody id="edBody"></tbody>
+              </table>
             </div>
-            <div class="d-flex flex-wrap gap-2 align-items-center">
-              <span class="badge text-bg-success">Tot OK: <span id="pivotTotalOk">0</span></span>
-              <span class="badge text-bg-dark">Tot fatturato: <span id="pivotTotalFatt">€ 0,00</span></span>
-              <span class="mini-note">Mese: <span id="pivotMonth" class="mono">—</span></span>
+
+            <div class="mini-note mt-2">
+              Nota: “Crea Excel + Apri Mail” usa <span class="mono">mailto:</span> (non allega automaticamente). Il file viene scaricato e poi puoi allegarlo nella mail.
+              Se vuoi invio massivo automatico con allegati, serve una piccola integrazione backend.
             </div>
-          </div>
 
-          <div class="table-wrap pivot">
-            <table class="table table-sm table-hover table-striped align-middle">
-              <thead>
-                <tr>
-                  <th>DEALER</th>
-                  <th class="num">PRATICHE OK</th>
-                  <th class="num">TOTALE FATTURATO</th>
-                  <th style="min-width:160px;">WHATSAPP</th>
-                </tr>
-              </thead>
-              <tbody id="pivotBody"></tbody>
-            </table>
-          </div>
-
-          <div class="mini-note mt-2">
-            Il tasto WhatsApp invia un messaggio precompilato (senza numero) con mese, OK e totale.
           </div>
         </div>
       </div>
-
-      <!-- TABELLA DETTAGLIO -->
-      <div class="col-12">
-        <div class="card p-3">
-          <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
-            <div>
-              <strong>Tabella</strong>
-              <div class="hint">Mostra tutte le righe filtrate (scroll).</div>
-            </div>
-            <div class="mini-note">File: <span id="fileLabel" class="mono">—</span></div>
-          </div>
-
-          <div class="table-wrap">
-            <table class="table table-sm table-hover table-striped align-middle">
-              <thead><tr id="theadRow"></tr></thead>
-              <tbody id="tbody"></tbody>
-            </table>
-          </div>
-
-        </div>
-      </div>
-
     </div>
   </div>
 
@@ -307,7 +443,7 @@ let rawRows = [];
 let filteredRows = [];
 let lastFilename = "";
 let monthLabel = "";
-let amToDealers = new Map();
+let amToDealers = new Map(); // AM -> Set(dealer)
 let selectedDealers = new Set();
 let dealerEmailMap = loadDealerEmailMap();
 
@@ -315,6 +451,11 @@ let dealerEmailMap = loadDealerEmailMap();
    UI
    ========================= */
 const el = (id)=>document.getElementById(id);
+
+const tabMain = el("tabMain");
+const tabEmails = el("tabEmails");
+const viewMain = el("viewMain");
+const viewEmails = el("viewEmails");
 
 const fileInput = el("fileInput");
 const btnReset = el("btnReset");
@@ -342,6 +483,7 @@ const btnBulkDownload = el("btnBulkDownload");
 const statFiltered = el("statFiltered");
 const statTotal = el("statTotal");
 
+const fileLabelTop = el("fileLabelTop");
 const fileLabel = el("fileLabel");
 
 const theadRow = el("theadRow");
@@ -352,6 +494,16 @@ const pivotBody = el("pivotBody");
 const pivotTotalOk = el("pivotTotalOk");
 const pivotTotalFatt = el("pivotTotalFatt");
 const pivotMonth = el("pivotMonth");
+
+/* Email Directory */
+const edAmFilter = el("edAmFilter");
+const edSearch = el("edSearch");
+const edOnlyMissing = el("edOnlyMissing");
+const edReload = el("edReload");
+const edBody = el("edBody");
+const edTot = el("edTot");
+const edWith = el("edWith");
+const edMissing = el("edMissing");
 
 /* =========================
    HELPERS
@@ -502,6 +654,7 @@ function saveEmailForSelectedDealer(){
   saveDealerEmailMap();
   btnClearEmail.disabled = false;
   updateEmailButtonState();
+  refreshEmailDirectory(); // aggiorna rubrica
   alert(`Email salvata per: ${dealer}`);
 }
 function clearEmailForSelectedDealer(){
@@ -513,6 +666,7 @@ function clearEmailForSelectedDealer(){
   btnClearEmail.disabled = true;
   btnSaveEmail.disabled = true;
   updateEmailButtonState();
+  refreshEmailDirectory();
   alert(`Email rimossa per: ${dealer}`);
 }
 
@@ -532,19 +686,20 @@ function buildAmDealerIndex(){
 function populateAmFilter(){
   const ams = uniqueSorted(rawRows.map(r => r["AM"]));
   amFilter.innerHTML = `<option value="">Tutti</option>` + ams.map(x => `<option>${escapeHtml(x)}</option>`).join("");
+  edAmFilter.innerHTML = `<option value="">Tutti</option>` + ams.map(x => `<option>${escapeHtml(x)}</option>`).join("");
 }
-function getDealersAllowedByAm(){
-  const am = amFilter.value.trim();
+function getDealersAllowedByAm(amValue){
+  const am = String(amValue ?? "").trim();
   if (!am) return new Set(uniqueSorted(rawRows.map(r => r["DEALER"])));
   return amToDealers.get(am) || new Set();
 }
 function refreshDealerDatalist(){
-  const allowed = getDealersAllowedByAm();
+  const allowed = getDealersAllowedByAm(amFilter.value);
   const list = Array.from(allowed).sort((a,b)=>a.localeCompare(b,"it"));
   dealerList.innerHTML = list.map(d => `<option value="${escapeHtml(d)}"></option>`).join("");
 }
 function pruneSelectedDealersIfNeeded(){
-  const allowed = getDealersAllowedByAm();
+  const allowed = getDealersAllowedByAm(amFilter.value);
   selectedDealers = new Set(Array.from(selectedDealers).filter(d => allowed.has(d)));
   renderDealerChips();
 }
@@ -623,7 +778,7 @@ function renderTable(){
    ========================= */
 function getBaseScopeRowsForPivot(){
   const am = amFilter.value.trim();
-  const allowedDealers = getDealersAllowedByAm();
+  const allowedDealers = getDealersAllowedByAm(am);
   const dealerSetActive = selectedDealers.size ? selectedDealers : null;
 
   return rawRows.filter(r => {
@@ -729,7 +884,7 @@ Al tuo indirizzo mail trovi la fattura`;
    ========================= */
 function applyFilters(){
   const am = amFilter.value.trim();
-  const allowedDealers = getDealersAllowedByAm();
+  const allowedDealers = getDealersAllowedByAm(am);
   const dealerSetActive = selectedDealers.size ? selectedDealers : null;
   const stSet = selectedStatusSet();
 
@@ -759,6 +914,9 @@ function applyFilters(){
 
   updateEmailButtonState();
   updateBulkButtonState();
+
+  // aggiorna anche rubrica (stato counts)
+  refreshEmailDirectory(false);
 }
 
 /* =========================
@@ -839,6 +997,48 @@ Verifica produzione in allegato
   window.location.href = url;
 }
 
+function emailFlowForDealer(dealer){
+  const to = String(dealerEmailMap[dealer] ?? "").trim();
+  if (!dealer || !isValidEmail(to)){
+    alert(`Email mancante o non valida per: ${dealer}`);
+    return;
+  }
+
+  // per coerenza con l’operatività: usiamo gli stati selezionati in alto se siamo in MAIN,
+  // altrimenti (rubrica) usiamo tutte le righe del dealer (qualunque stato) rispettando AM rubrica.
+  // Qui scegliamo: rispettare sempre gli stati selezionati (OK/KO/NF) perché è la rendicontazione.
+  const stSet = selectedStatusSet();
+
+  const rowsForDealer = rawRows.filter(r => {
+    const rDealer = String(r["DEALER"] ?? "").trim();
+    if (rDealer !== dealer) return false;
+
+    const st = normStatus(r["STATO"]);
+    if (stSet.size > 0){
+      if (!stSet.has(st)) return false;
+    } else return false;
+
+    // se in MAIN è selezionato un AM, limitiamo a quell’AM
+    const amMain = amFilter.value.trim();
+    if (amMain){
+      const rAm = String(r["AM"] ?? "").trim();
+      if (rAm !== amMain) return false;
+    }
+
+    return true;
+  });
+
+  if (!rowsForDealer.length){
+    alert(`Nessuna riga per ${dealer} con gli stati selezionati.`);
+    return;
+  }
+
+  const filename = buildDealerFilename(dealer);
+  exportXlsx(rowsForDealer, filename);
+
+  setTimeout(() => openMailtoMinimal(dealer, to, rowsForDealer), 350);
+}
+
 function emailFlowForSelectedDealer(){
   const dealer = getSelectedSingleDealer();
   const to = String(emailTo.value ?? "").trim();
@@ -874,7 +1074,7 @@ async function bulkDownloadAllDealersForAm(){
     return;
   }
 
-  const allowed = Array.from(getDealersAllowedByAm()).sort((a,b)=>a.localeCompare(b,"it"));
+  const allowed = Array.from(getDealersAllowedByAm(am)).sort((a,b)=>a.localeCompare(b,"it"));
   const stSet = selectedStatusSet();
 
   const baseRows = rawRows.filter(r => {
@@ -908,6 +1108,168 @@ async function bulkDownloadAllDealersForAm(){
 }
 
 /* =========================
+   EMAIL DIRECTORY (Rubrica)
+   ========================= */
+function getDealerToAmMap(){
+  const map = new Map(); // dealer -> am (prima occorrenza)
+  rawRows.forEach(r => {
+    const dealer = String(r["DEALER"] ?? "").trim();
+    const am = String(r["AM"] ?? "").trim();
+    if (!dealer) return;
+    if (!map.has(dealer)) map.set(dealer, am || "");
+  });
+  return map;
+}
+
+function refreshEmailDirectory(scrollTop=true){
+  if (!rawRows.length){
+    edTot.textContent = "0";
+    edWith.textContent = "0";
+    edMissing.textContent = "0";
+    edBody.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-4">Importa un file per gestire la rubrica.</td></tr>`;
+    return;
+  }
+
+  const dealerToAm = getDealerToAmMap();
+  const amScope = edAmFilter.value.trim();
+  const allowed = getDealersAllowedByAm(amScope);
+  const q = String(edSearch.value ?? "").trim().toLowerCase();
+  const onlyMissing = !!edOnlyMissing.checked;
+
+  const list = Array.from(allowed).map(dealer => ({
+    dealer,
+    am: dealerToAm.get(dealer) || "",
+    email: String(dealerEmailMap[dealer] ?? "").trim()
+  }))
+  .filter(x => !q || x.dealer.toLowerCase().includes(q))
+  .filter(x => !onlyMissing || !isValidEmail(x.email))
+  .sort((a,b)=>a.dealer.localeCompare(b.dealer,"it"));
+
+  const total = Array.from(allowed).length;
+  const withEmail = Array.from(allowed).filter(d => isValidEmail(String(dealerEmailMap[d] ?? "").trim())).length;
+  const missing = Math.max(0, total - withEmail);
+
+  edTot.textContent = String(total);
+  edWith.textContent = String(withEmail);
+  edMissing.textContent = String(missing);
+
+  if (!list.length){
+    edBody.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-4">Nessun negozio nel perimetro attuale.</td></tr>`;
+    return;
+  }
+
+  const prevScroll = edBody.parentElement?.scrollTop ?? 0;
+  edBody.innerHTML = "";
+
+  list.forEach(item => {
+    const tr = document.createElement("tr");
+
+    const tdD = document.createElement("td");
+    tdD.textContent = item.dealer;
+    tr.appendChild(tdD);
+
+    const tdA = document.createElement("td");
+    tdA.textContent = item.am || "—";
+    tr.appendChild(tdA);
+
+    const tdE = document.createElement("td");
+    const inp = document.createElement("input");
+    inp.type = "email";
+    inp.className = "form-control form-control-sm";
+    inp.placeholder = "email negozio…";
+    inp.value = item.email;
+    inp.style.minWidth = "240px";
+    tdE.appendChild(inp);
+    tr.appendChild(tdE);
+
+    const tdS = document.createElement("td");
+    const ok = isValidEmail(item.email);
+    tdS.innerHTML = ok
+      ? `<span class="pill-ok">OK</span>`
+      : `<span class="pill-missing">MANCANTE</span>`;
+    tr.appendChild(tdS);
+
+    const tdAct = document.createElement("td");
+    const btnSave = document.createElement("button");
+    btnSave.className = "btn btn-sm btn-outline-primary me-2";
+    btnSave.textContent = "Salva";
+    btnSave.disabled = !isValidEmail(inp.value);
+
+    const btnDel = document.createElement("button");
+    btnDel.className = "btn btn-sm btn-outline-secondary me-2";
+    btnDel.textContent = "Rimuovi";
+    btnDel.disabled = !item.email;
+
+    const btnMail = document.createElement("button");
+    btnMail.className = "btn btn-sm btn-tiffany";
+    btnMail.textContent = "Crea Excel + Apri Mail";
+    btnMail.disabled = !isValidEmail(inp.value);
+
+    inp.addEventListener("input", () => {
+      btnSave.disabled = !isValidEmail(inp.value);
+      btnMail.disabled = !isValidEmail(inp.value);
+    });
+
+    btnSave.addEventListener("click", () => {
+      const v = String(inp.value ?? "").trim();
+      if (!isValidEmail(v)){ alert("Email non valida."); return; }
+      dealerEmailMap[item.dealer] = v;
+      saveDealerEmailMap();
+      // Sync se questo dealer è selezionato in main
+      if (getSelectedSingleDealer() === item.dealer) syncEmailFromDealerSelection();
+      refreshEmailDirectory(false);
+      alert(`Email salvata per: ${item.dealer}`);
+    });
+
+    btnDel.addEventListener("click", () => {
+      if (dealerEmailMap[item.dealer]) delete dealerEmailMap[item.dealer];
+      saveDealerEmailMap();
+      if (getSelectedSingleDealer() === item.dealer) syncEmailFromDealerSelection();
+      refreshEmailDirectory(false);
+      alert(`Email rimossa per: ${item.dealer}`);
+    });
+
+    btnMail.addEventListener("click", () => {
+      // usa email presente e avvia flusso
+      dealerEmailMap[item.dealer] = String(inp.value ?? "").trim();
+      saveDealerEmailMap();
+      emailFlowForDealer(item.dealer);
+    });
+
+    tdAct.appendChild(btnSave);
+    tdAct.appendChild(btnDel);
+    tdAct.appendChild(btnMail);
+    tr.appendChild(tdAct);
+
+    edBody.appendChild(tr);
+  });
+
+  if (!scrollTop) {
+    edBody.parentElement.scrollTop = prevScroll;
+  } else {
+    edBody.parentElement.scrollTop = 0;
+  }
+}
+
+/* =========================
+   VIEW SWITCH
+   ========================= */
+function setActiveView(which){
+  if (which === "main"){
+    tabMain.classList.add("active");
+    tabEmails.classList.remove("active");
+    viewMain.classList.add("active");
+    viewEmails.classList.remove("active");
+  } else {
+    tabEmails.classList.add("active");
+    tabMain.classList.remove("active");
+    viewEmails.classList.add("active");
+    viewMain.classList.remove("active");
+    refreshEmailDirectory();
+  }
+}
+
+/* =========================
    IMPORT XLSX
    ========================= */
 function setEnabled(enabled){
@@ -918,12 +1280,16 @@ function setEnabled(enabled){
     emailTo, btnSaveEmail, btnClearEmail,
     btnExportXlsx, btnEmailDealer, btnBulkDownload
   ].forEach(x => x.disabled = !enabled);
+
+  // Rubrica
+  [edAmFilter, edSearch, edOnlyMissing, edReload].forEach(x => x.disabled = !enabled);
 }
 
 async function loadXlsxFile(file){
   if (!file) return;
   lastFilename = file.name || "";
   fileLabel.textContent = lastFilename || "—";
+  fileLabelTop.textContent = lastFilename || "—";
 
   monthLabel = parseMonthFromFilename(lastFilename) || "";
   if (!monthLabel) monthLabel = currentMonthIt();
@@ -939,6 +1305,7 @@ async function loadXlsxFile(file){
   populateAmFilter();
   refreshDealerDatalist();
 
+  // reset filtri MAIN
   amFilter.value = "";
   selectedDealers.clear();
   dealerSearch.value = "";
@@ -947,9 +1314,13 @@ async function loadXlsxFile(file){
   renderDealerChips();
   setEnabled(true);
 
+  // rubrica reset
+  edAmFilter.value = "";
+  edSearch.value = "";
+  edOnlyMissing.checked = false;
+
   applyFilters();
-  updateBulkButtonState();
-  updateEmailButtonState();
+  refreshEmailDirectory();
 }
 
 /* =========================
@@ -958,6 +1329,7 @@ async function loadXlsxFile(file){
 buildHeader();
 setEnabled(false);
 fileLabel.textContent = "—";
+fileLabelTop.textContent = "—";
 statFiltered.textContent = "0";
 statTotal.textContent = "€ 0,00";
 pivotMonth.textContent = "—";
@@ -965,6 +1337,10 @@ pivotTotalOk.textContent = "0";
 pivotTotalFatt.textContent = "€ 0,00";
 renderTable();
 buildPivotOk();
+refreshEmailDirectory();
+
+tabMain.addEventListener("click", ()=>setActiveView("main"));
+tabEmails.addEventListener("click", ()=>setActiveView("emails"));
 
 fileInput.addEventListener("change", (e) => loadXlsxFile(e.target.files?.[0]));
 
@@ -978,8 +1354,10 @@ btnReset.addEventListener("click", () => {
 
   fileInput.value = "";
   fileLabel.textContent = "—";
+  fileLabelTop.textContent = "—";
 
   amFilter.innerHTML = `<option value="">Tutti</option>`;
+  edAmFilter.innerHTML = `<option value="">Tutti</option>`;
   dealerList.innerHTML = "";
   dealerSearch.value = "";
 
@@ -989,11 +1367,13 @@ btnReset.addEventListener("click", () => {
   btnSaveEmail.disabled = true;
   btnClearEmail.disabled = true;
 
+  edSearch.value = "";
+  edOnlyMissing.checked = false;
+
   setEnabled(false);
 
   statFiltered.textContent = "0";
   statTotal.textContent = "€ 0,00";
-
   dealerChips.innerHTML = `<span class="mini-note">Nessun negozio selezionato.</span>`;
   tbody.innerHTML = `<tr><td class="text-center text-muted py-4" colspan="${DESIRED_COLUMNS.length}">Importa un file per iniziare.</td></tr>`;
 
@@ -1001,6 +1381,9 @@ btnReset.addEventListener("click", () => {
   pivotTotalOk.textContent = "0";
   pivotTotalFatt.textContent = "€ 0,00";
   pivotBody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-4">Importa un file per vedere la dashboard.</td></tr>`;
+
+  refreshEmailDirectory();
+  setActiveView("main");
 });
 
 amFilter.addEventListener("change", () => {
@@ -1013,7 +1396,7 @@ btnAddDealer.addEventListener("click", () => {
   const name = String(dealerSearch.value ?? "").trim();
   if (!name) return;
 
-  const allowed = getDealersAllowedByAm();
+  const allowed = getDealersAllowedByAm(amFilter.value);
   if (!allowed.has(name)){
     alert("Questo negozio non è disponibile per l’AM selezionato (o non esiste nel file).");
     return;
@@ -1052,6 +1435,15 @@ btnExportXlsx.addEventListener("click", () => {
 
 btnEmailDealer.addEventListener("click", emailFlowForSelectedDealer);
 btnBulkDownload.addEventListener("click", bulkDownloadAllDealersForAm);
+
+/* Rubrica events */
+edAmFilter.addEventListener("change", () => refreshEmailDirectory());
+edSearch.addEventListener("input", () => {
+  clearTimeout(window.__edT);
+  window.__edT = setTimeout(()=>refreshEmailDirectory(false), 150);
+});
+edOnlyMissing.addEventListener("change", () => refreshEmailDirectory());
+edReload.addEventListener("click", () => refreshEmailDirectory());
 
 </script>
 </body>
