@@ -3,10 +3,11 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Rendicontazione Contratti – v1.5</title>
+  <title>Rendicontazione Contratti – v1.7</title>
 
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+  <!-- ✅ SheetJS con supporto STILI (header grigio, colonna Compenso gialla, larghezze) -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 
   <style>
     :root{
@@ -447,6 +448,9 @@ let amToDealers = new Map(); // AM -> Set(dealer)
 let selectedDealers = new Set();
 let dealerEmailMap = loadDealerEmailMap();
 
+/* ✅ resolver robusto colonna COMPENSO */
+let COMPENSO_HEADER = "Compenso";
+
 /* =========================
    UI
    ========================= */
@@ -533,12 +537,6 @@ function fmtDate(v){
   if (!isNaN(d)) return fmtDate(d);
   return s;
 }
-function getCell(row, desiredLabel){
-  const realHeader = COLUMN_MAP[desiredLabel] || desiredLabel;
-  const val = row?.[realHeader];
-  if (desiredLabel === "Data creazione" || desiredLabel === "Data firma") return fmtDate(val);
-  return (val === undefined || val === null) ? "" : val;
-}
 function uniqueSorted(arr){
   return Array.from(new Set(arr.filter(x => x !== null && x !== undefined && String(x).trim() !== "")))
     .map(x => String(x).trim())
@@ -558,13 +556,13 @@ function safeName(s){
     .replace(/\s+/g, " ")
     .trim();
 }
-function computeTotal(rows){
-  return rows.reduce((acc,r) => acc + toNumber(getCell(r,"Compenso")), 0);
-}
 function capFirst(s){
   const x = String(s||"").trim();
   if (!x) return "";
   return x.charAt(0).toUpperCase() + x.slice(1);
+}
+function computeTotal(rows){
+  return rows.reduce((acc,r) => acc + toNumber(getCompenso(r)), 0);
 }
 
 /* =========================
@@ -605,6 +603,60 @@ function selectedStatusSet(){
   if (stKO.checked) set.add("KO");
   if (stNF.checked) set.add("NON FIRMATO");
   return set;
+}
+
+/* =========================
+   ✅ COMPENSO resolver (case/space-insensitive)
+   ========================= */
+function normKey(k){
+  return String(k ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g,"")        // remove spaces
+    .replace(/[_-]+/g,"");     // remove _ and -
+}
+function resolveHeader(rowObj, desired){
+  if (!rowObj) return desired;
+  const keys = Object.keys(rowObj);
+  const wanted = new Set([desired, desired.toUpperCase(), desired.toLowerCase()].map(normKey));
+  // accettiamo anche "compenso €" o simili se contengono la parola
+  let best = "";
+  for (const k of keys){
+    const nk = normKey(k);
+    if (wanted.has(nk)) return k;
+    if (!best && nk.includes("compenso")) best = k;
+  }
+  return best || desired;
+}
+function getCompenso(row){
+  const h = COMPENSO_HEADER || "Compenso";
+  const v = row?.[h];
+  if (v !== undefined && v !== null && v !== "") return v;
+
+  // fallback: prova altre varianti possibili
+  const keys = Object.keys(row || {});
+  for (const k of keys){
+    if (normKey(k) === "compenso") return row[k];
+  }
+  for (const k of keys){
+    if (normKey(k).includes("compenso")) return row[k];
+  }
+  return "";
+}
+
+/* =========================
+   CELL GETTER (con map e compenso robusto)
+   ========================= */
+function getCell(row, desiredLabel){
+  const realHeader = COLUMN_MAP[desiredLabel] || desiredLabel;
+
+  if (desiredLabel === "Compenso"){
+    return getCompenso(row);
+  }
+
+  const val = row?.[realHeader];
+  if (desiredLabel === "Data creazione" || desiredLabel === "Data firma") return fmtDate(val);
+  return (val === undefined || val === null) ? "" : val;
 }
 
 /* =========================
@@ -654,7 +706,7 @@ function saveEmailForSelectedDealer(){
   saveDealerEmailMap();
   btnClearEmail.disabled = false;
   updateEmailButtonState();
-  refreshEmailDirectory(); // aggiorna rubrica
+  refreshEmailDirectory();
   alert(`Email salvata per: ${dealer}`);
 }
 function clearEmailForSelectedDealer(){
@@ -920,7 +972,7 @@ function applyFilters(){
 }
 
 /* =========================
-   EXPORT
+   ✅ EXPORT STYLED (header grigio + colonna Compenso gialla + larghezze)
    ========================= */
 function buildExportAoA(rows){
   const aoa = [];
@@ -944,19 +996,103 @@ function buildExportAoA(rows){
   return aoa;
 }
 
+function makeColsWidthFromAoA(aoa){
+  // auto-fit base, con clamp
+  const widths = DESIRED_COLUMNS.map((h, i) => {
+    let maxLen = String(h || "").length;
+
+    for (let r=1; r<aoa.length; r++){
+      const v = aoa[r][i];
+      const s = (v === null || v === undefined) ? "" : (typeof v === "number" ? v.toFixed(2) : String(v));
+      maxLen = Math.max(maxLen, s.length);
+    }
+
+    // tweak su alcune colonne lunghe
+    const name = DESIRED_COLUMNS[i];
+    if (name === "Indirizzo") maxLen = Math.max(maxLen, 34);
+    if (name === "Nome opportunità") maxLen = Math.max(maxLen, 24);
+    if (name === "Billing Profile: Modalità di Pagamento") maxLen = Math.max(maxLen, 26);
+    if (name === "Ragione Sociale") maxLen = Math.max(maxLen, 24);
+
+    // colonna Compenso: width più "da modello"
+    if (name === "Compenso") maxLen = 14;
+
+    // clamp
+    const w = Math.max(10, Math.min(45, Math.ceil(maxLen * 1.08)));
+    return { wch: w };
+  });
+
+  return widths;
+}
+
 function exportXlsx(rows, filename){
   if (!rows.length) return;
 
   const aoa = buildExportAoA(rows);
   const ws = XLSX.utils.aoa_to_sheet(aoa);
 
+  // Larghezze colonne
+  ws["!cols"] = makeColsWidthFromAoA(aoa);
+
+  // Stili
+  const headerStyle = {
+    font: { bold: true, color:{ rgb:"000000" } },
+    fill: { patternType:"solid", fgColor:{ rgb:"F2F2F2" } },
+    alignment: { vertical:"center", horizontal:"center", wrapText:true },
+    border: {
+      top:{style:"thin", color:{rgb:"D9D9D9"}},
+      bottom:{style:"thin", color:{rgb:"D9D9D9"}},
+      left:{style:"thin", color:{rgb:"D9D9D9"}},
+      right:{style:"thin", color:{rgb:"D9D9D9"}}
+    }
+  };
+  const compFillStyle = {
+    fill: { patternType:"solid", fgColor:{ rgb:"FFF2CC" } } // giallo tenue
+  };
+
   const compIdx = DESIRED_COLUMNS.indexOf("Compenso");
-  for (let r = 2; r <= aoa.length; r++){
-    const cellAddr = XLSX.utils.encode_cell({ r: r-1, c: compIdx });
-    const cell = ws[cellAddr];
-    if (cell && typeof cell.v === "number"){
-      cell.t = "n";
-      cell.z = '#,##0.00';
+  const lastRow = aoa.length; // 1-based in excel
+  const lastCol = DESIRED_COLUMNS.length;
+
+  // Applica header style
+  for (let c=0; c<lastCol; c++){
+    const addr = XLSX.utils.encode_cell({ r:0, c });
+    if (!ws[addr]) continue;
+    ws[addr].s = { ...(ws[addr].s||{}), ...headerStyle };
+  }
+
+  // Applica colonna Compenso gialla + formato numero
+  for (let r=0; r<lastRow; r++){
+    const addr = XLSX.utils.encode_cell({ r, c: compIdx });
+    if (!ws[addr]) continue;
+
+    ws[addr].s = { ...(ws[addr].s||{}), ...compFillStyle };
+
+    if (r > 0 && typeof ws[addr].v === "number"){ // dati (non header)
+      ws[addr].t = "n";
+      ws[addr].z = '#,##0.00';
+      ws[addr].s = {
+        ...(ws[addr].s||{}),
+        alignment: { vertical:"center", horizontal:"right" }
+      };
+    }
+  }
+
+  // Bordo soft su area dati (facoltativo ma “pulito”)
+  const borderSoft = {
+    border: {
+      top:{style:"thin", color:{rgb:"E5E7EB"}},
+      bottom:{style:"thin", color:{rgb:"E5E7EB"}},
+      left:{style:"thin", color:{rgb:"E5E7EB"}},
+      right:{style:"thin", color:{rgb:"E5E7EB"}}
+    },
+    alignment: { vertical:"center", wrapText:false }
+  };
+  for (let r=1; r<lastRow; r++){
+    for (let c=0; c<lastCol; c++){
+      const addr = XLSX.utils.encode_cell({ r, c });
+      if (!ws[addr]) continue;
+      ws[addr].s = { ...(ws[addr].s||{}), ...borderSoft, ...(c===compIdx ? compFillStyle : {}) };
     }
   }
 
@@ -972,8 +1108,12 @@ function buildDealerFilename(dealer){
 }
 
 /* =========================
-   EMAIL FLOW (no .eml)
+   EMAIL FLOW
    ========================= */
+function countOk(rows){
+  return rows.reduce((acc,r)=> acc + (normStatus(r["STATO"])==="OK" ? 1 : 0), 0);
+}
+
 function updateEmailButtonState(){
   const dealer = getSelectedSingleDealer();
   const to = String(emailTo.value ?? "").trim();
@@ -982,17 +1122,26 @@ function updateEmailButtonState(){
 }
 
 function openMailtoMinimal(dealerName, recipientEmail, rowsForDealer){
+  const mese = capFirst(monthLabel || currentMonthIt());
   const total = fmtEUR(computeTotal(rowsForDealer));
+  const okCount = countOk(rowsForDealer);
+
   const body =
 `Ciao,
 
 in allegato la rendicontazione contratti del negozio:
 - DEALER: ${dealerName}
+- Mese: ${mese}
+- Pratiche OK: ${okCount}
 - Totale compensi: ${total}
 
-Verifica produzione in allegato
+In allegato il dettaglio delle pratiche che ti chiedo di verificare.
+La fattura verrà emessa in questi giorni tenendo conto di questa produzione. Dovesse mancare qualcosa ti chiedo di segnalarlo oggi altrimenti verrà inserito nella prossima rendicontazione.
+
+Grazie
 `;
-  const subject = `Rendicontazione contratti – ${dealerName}`;
+
+  const subject = `Rendicontazione ${BRAND_LABEL} ${mese} – ${dealerName}`;
   const url = `mailto:${encodeURIComponent(recipientEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   window.location.href = url;
 }
@@ -1004,10 +1153,8 @@ function emailFlowForDealer(dealer){
     return;
   }
 
-  // per coerenza con l’operatività: usiamo gli stati selezionati in alto se siamo in MAIN,
-  // altrimenti (rubrica) usiamo tutte le righe del dealer (qualunque stato) rispettando AM rubrica.
-  // Qui scegliamo: rispettare sempre gli stati selezionati (OK/KO/NF) perché è la rendicontazione.
   const stSet = selectedStatusSet();
+  const amMain = amFilter.value.trim();
 
   const rowsForDealer = rawRows.filter(r => {
     const rDealer = String(r["DEALER"] ?? "").trim();
@@ -1018,8 +1165,6 @@ function emailFlowForDealer(dealer){
       if (!stSet.has(st)) return false;
     } else return false;
 
-    // se in MAIN è selezionato un AM, limitiamo a quell’AM
-    const amMain = amFilter.value.trim();
     if (amMain){
       const rAm = String(r["AM"] ?? "").trim();
       if (rAm !== amMain) return false;
@@ -1215,7 +1360,6 @@ function refreshEmailDirectory(scrollTop=true){
       if (!isValidEmail(v)){ alert("Email non valida."); return; }
       dealerEmailMap[item.dealer] = v;
       saveDealerEmailMap();
-      // Sync se questo dealer è selezionato in main
       if (getSelectedSingleDealer() === item.dealer) syncEmailFromDealerSelection();
       refreshEmailDirectory(false);
       alert(`Email salvata per: ${item.dealer}`);
@@ -1230,7 +1374,6 @@ function refreshEmailDirectory(scrollTop=true){
     });
 
     btnMail.addEventListener("click", () => {
-      // usa email presente e avvia flusso
       dealerEmailMap[item.dealer] = String(inp.value ?? "").trim();
       saveDealerEmailMap();
       emailFlowForDealer(item.dealer);
@@ -1281,7 +1424,6 @@ function setEnabled(enabled){
     btnExportXlsx, btnEmailDealer, btnBulkDownload
   ].forEach(x => x.disabled = !enabled);
 
-  // Rubrica
   [edAmFilter, edSearch, edOnlyMissing, edReload].forEach(x => x.disabled = !enabled);
 }
 
@@ -1300,6 +1442,9 @@ async function loadXlsxFile(file){
   const ws = wb.Sheets[sheetName];
 
   rawRows = XLSX.utils.sheet_to_json(ws, { defval:"" });
+
+  // ✅ risoluzione robusta header compenso (Compenso/COMPENSO/varianti)
+  COMPENSO_HEADER = resolveHeader(rawRows[0], "Compenso");
 
   buildAmDealerIndex();
   populateAmFilter();
@@ -1351,6 +1496,7 @@ btnReset.addEventListener("click", () => {
   monthLabel = "";
   amToDealers = new Map();
   selectedDealers.clear();
+  COMPENSO_HEADER = "Compenso";
 
   fileInput.value = "";
   fileLabel.textContent = "—";
@@ -1444,7 +1590,6 @@ edSearch.addEventListener("input", () => {
 });
 edOnlyMissing.addEventListener("change", () => refreshEmailDirectory());
 edReload.addEventListener("click", () => refreshEmailDirectory());
-
 </script>
 </body>
 </html>
