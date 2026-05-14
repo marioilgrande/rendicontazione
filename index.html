@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Rendicontazione Contratti – v1.8</title>
+  <title>Rendicontazione Contratti – v2.0</title>
 
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
@@ -11,149 +11,277 @@
   <style>
     :root{
       --tiffany:#0ABAB5;
-      --bg:#f6f8fb;
+      --tiffany-dark:#078f8a;
+      --tiffany-darker:#056e6a;
+      --bg:#f4f7fa;
       --card:#ffffff;
-      --text:#111827;
-      --muted:#6b7280;
-      --border:#e5e7eb;
-      --shadow: 0 12px 26px rgba(15,23,42,.08);
+      --text:#0f172a;
+      --muted:#64748b;
+      --border:#e2e8f0;
+      --border-strong:#cbd5e1;
+      --shadow: 0 6px 18px rgba(15,23,42,.06);
+      --shadow-lg: 0 16px 40px rgba(15,23,42,.10);
+      --ok:#0ea371;
+      --ok-bg:#e6f7f0;
+      --ko:#b91c1c;
+      --ko-bg:#fdecec;
+      --nf:#7c4a03;
+      --nf-bg:#fff4dc;
+      --opz:#5b21b6;
+      --opz-bg:#efe7fb;
     }
-    body{ background:var(--bg); color:var(--text); }
+    html, body{ background:var(--bg); color:var(--text); font-size:14px; }
+
+    /* ===== TOP BAR ===== */
     .topbar{
-      background: linear-gradient(90deg, var(--tiffany), #078f8a);
+      background: linear-gradient(120deg, var(--tiffany) 0%, var(--tiffany-dark) 100%);
       color:#fff;
-      padding:14px 16px;
-      border-bottom: 1px solid rgba(255,255,255,.15);
+      padding:16px 20px;
+      box-shadow: 0 4px 14px rgba(7,143,138,.25);
+      position: sticky; top:0; z-index:50;
     }
-    .topbar h1{ font-size:18px; margin:0; font-weight:900; letter-spacing:.2px; }
-    .topbar .sub{ opacity:.9; font-size:12px; margin-top:2px; }
+    .topbar h1{
+      font-size:19px; margin:0;
+      font-weight:800; letter-spacing:.2px;
+      display:flex; align-items:center; gap:10px;
+    }
+    .topbar h1::before{
+      content:"";
+      width:10px; height:10px; border-radius:50%;
+      background:#fff; box-shadow:0 0 0 4px rgba(255,255,255,.25);
+    }
+    .topbar .sub{ opacity:.92; font-size:12.5px; margin-top:3px; }
     .top-actions{
-      margin-top:10px;
+      margin-top:12px;
       display:flex;
       gap:8px;
       flex-wrap:wrap;
       align-items:center;
     }
     .tabbtn{
-      border:1px solid rgba(255,255,255,.35);
-      background: rgba(255,255,255,.14);
+      border:1px solid rgba(255,255,255,.4);
+      background: rgba(255,255,255,.12);
       color:#fff;
-      font-weight:900;
-      padding:8px 12px;
+      font-weight:700;
+      padding:8px 16px;
       border-radius:999px;
       cursor:pointer;
-      transition:.15s ease;
-      font-size:12px;
+      transition:.18s ease;
+      font-size:12.5px;
     }
     .tabbtn:hover{ background: rgba(255,255,255,.22); }
     .tabbtn.active{
       background:#fff;
-      color:#075e59;
+      color: var(--tiffany-darker);
       border-color:#fff;
+      box-shadow: 0 2px 8px rgba(0,0,0,.08);
     }
+    .file-pill{
+      display:inline-flex; align-items:center; gap:8px;
+      padding:6px 12px;
+      border-radius:999px;
+      background: rgba(255,255,255,.18);
+      border:1px solid rgba(255,255,255,.28);
+      font-size:12px; font-weight:600;
+      color:#fff;
+    }
+    .file-pill .dot{
+      width:7px; height:7px; border-radius:50%;
+      background:#a7f3d0;
+    }
+    .file-pill.empty .dot{ background:#fde68a; }
 
+    /* ===== CARDS ===== */
     .card{
       border:1px solid var(--border);
-      border-radius:16px;
+      border-radius:14px;
       box-shadow: var(--shadow);
       background: var(--card);
     }
-    .hint{ color:var(--muted); font-size:13px; }
+    .card-head{
+      padding:14px 18px 6px;
+      display:flex; flex-wrap:wrap; gap:10px;
+      align-items:center; justify-content:space-between;
+    }
+    .card-body-tight{ padding:6px 18px 16px; }
+    .card-title{
+      font-weight:800; font-size:14.5px;
+      letter-spacing:.2px; color:var(--text);
+      display:flex; align-items:center; gap:8px;
+    }
+    .card-title .accent{
+      width:4px; height:18px; border-radius:3px;
+      background: var(--tiffany);
+    }
+    .hint{ color:var(--muted); font-size:12.5px; margin-top:2px; }
+    .section-title{
+      font-weight:700; font-size:12.5px;
+      letter-spacing:.3px; text-transform:uppercase;
+      color:var(--muted); margin-bottom:6px;
+    }
+    .mini-note{ font-size:12px; color:var(--muted); }
+    .divider{ height:1px; background:var(--border); margin:14px 0; }
+
+    /* ===== BUTTONS ===== */
+    .btn{ font-weight:600; }
     .btn-tiffany{
       background:var(--tiffany); border-color:var(--tiffany); color:#fff;
-      font-weight:900;
+      font-weight:700;
     }
-    .btn-tiffany:hover{ background:#089a94; border-color:#089a94; color:#fff; }
+    .btn-tiffany:hover{ background:var(--tiffany-dark); border-color:var(--tiffany-dark); color:#fff; }
+    .btn-wa{
+      font-weight:700;
+      border:1px solid #cfe9e8;
+      background:#f2fffe;
+      color: var(--tiffany-darker);
+    }
+    .btn-wa:hover{
+      background:#e7fffd;
+      border-color:#aee1de;
+      color: var(--tiffany-darker);
+    }
 
+    /* ===== FORM ===== */
+    .form-control, .form-select{
+      border-color: var(--border-strong);
+      font-size: 13.5px;
+    }
+    .form-control:focus, .form-select:focus{
+      border-color: var(--tiffany);
+      box-shadow: 0 0 0 .2rem rgba(10,186,181,.18);
+    }
+    .form-check-label{ font-weight:600; font-size:13px; }
+
+    /* ===== TABLE ===== */
     .table-wrap{
-      max-height:66vh;
+      max-height:64vh;
       overflow:auto;
-      border-radius:14px;
+      border-radius:12px;
       border:1px solid var(--border);
       background:#fff;
     }
-    .table-wrap.pivot{ max-height:38vh; }
+    .table-wrap.pivot{ max-height:40vh; }
     .table-wrap.emaildir{ max-height:62vh; }
-
+    .table{ margin-bottom:0; }
     thead th{
       position:sticky; top:0; z-index:2;
       background: var(--tiffany) !important;
       color:#fff !important;
       border-color: rgba(255,255,255,.18) !important;
       white-space: nowrap;
-      font-size:12px;
+      font-size:11.5px;
+      font-weight:700;
+      letter-spacing:.4px;
+      text-transform: uppercase;
+      padding:10px 12px !important;
     }
     tbody td{
       white-space: nowrap;
-      font-size:12px;
+      font-size:12.5px;
       vertical-align: middle;
+      padding:8px 12px !important;
     }
+    .table-hover>tbody>tr:hover{ background: #f7fdfc; }
+    .table-striped>tbody>tr:nth-of-type(odd)>* { background-color: #fbfdfd; }
     .num{ text-align:right; font-variant-numeric: tabular-nums; }
     .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
 
+    /* ===== CHIPS / PILLS ===== */
     .chip{
       display:inline-flex; align-items:center; gap:8px;
-      padding:7px 10px;
+      padding:6px 10px 6px 12px;
       border-radius:999px;
-      border:1px solid var(--border);
+      border:1px solid var(--border-strong);
       background:#fff;
-      font-weight:800;
+      font-weight:600;
       font-size:12px;
     }
     .chip button{
       border:none; background:transparent;
       font-weight:900; line-height:1;
-      cursor:pointer; color:#6b7280;
+      cursor:pointer; color: var(--muted);
+      padding:0 2px;
     }
-    .chip button:hover{ color:#111827; }
-
-    .section-title{ font-weight:900; font-size:13px; letter-spacing:.2px; }
-    .mini-note{ font-size:12px; color:var(--muted); }
-    .divider{ height:1px; background:var(--border); margin:12px 0; }
+    .chip button:hover{ color: var(--ko); }
 
     .status-box{
       border:1px solid var(--border);
-      border-radius:14px;
+      border-radius:12px;
       padding:10px 12px;
       background:#fff;
+      display:flex; flex-wrap:wrap;
+      gap:10px 14px; align-items:center;
     }
-    .form-check-label{ font-weight:900; }
+    .status-box .form-check{
+      margin:0; padding-left:24px;
+    }
+    .status-tag{
+      display:inline-block;
+      padding:2px 7px;
+      border-radius:6px;
+      font-size:11px; font-weight:700;
+      letter-spacing:.3px;
+      margin-left:4px;
+    }
+    .status-tag.ok{ background:var(--ok-bg); color:var(--ok); }
+    .status-tag.ko{ background:var(--ko-bg); color:var(--ko); }
+    .status-tag.nf{ background:var(--nf-bg); color:var(--nf); }
+    .status-tag.opz{ background:var(--opz-bg); color:var(--opz); }
 
-    .btn-wa{
-      font-weight:900;
-      border:1px solid #cfe9e8;
-      background:#f2fffe;
-      color:#0b7b76;
+    .stat-card{
+      border:1px solid var(--border);
+      border-radius:12px;
+      padding:10px 14px;
+      background:#fff;
+      min-width: 140px;
     }
-    .btn-wa:hover{
-      background:#e7fffd;
-      border-color:#aee1de;
-      color:#075e59;
+    .stat-card .label{
+      font-size:11px; font-weight:700;
+      letter-spacing:.4px; text-transform:uppercase;
+      color:var(--muted);
     }
+    .stat-card .value{
+      font-size:18px; font-weight:800;
+      font-variant-numeric: tabular-nums;
+      color:var(--text); margin-top:2px;
+    }
+    .stat-card.ok .value{ color: var(--ok); }
+    .stat-card.opz .value{ color: var(--opz); }
+    .stat-card.total .value{ color: var(--tiffany-darker); }
 
     .pill-ok{
       display:inline-flex; align-items:center; gap:6px;
-      padding:4px 8px;
+      padding:3px 9px;
       border-radius:999px;
       border:1px solid #bfecea;
-      background:#eafaf9;
-      color:#056e6a;
-      font-weight:900;
-      font-size:12px;
+      background:var(--ok-bg);
+      color:var(--ok);
+      font-weight:700;
+      font-size:11.5px;
     }
     .pill-missing{
       display:inline-flex; align-items:center; gap:6px;
-      padding:4px 8px;
+      padding:3px 9px;
       border-radius:999px;
       border:1px solid #f3d7d7;
-      background:#fff3f3;
-      color:#8b1a1a;
-      font-weight:900;
-      font-size:12px;
+      background:var(--ko-bg);
+      color:var(--ko);
+      font-weight:700;
+      font-size:11.5px;
     }
+
+    .row-status-OK td:first-child{ box-shadow: inset 3px 0 0 var(--ok); }
+    .row-status-KO td:first-child{ box-shadow: inset 3px 0 0 var(--ko); }
+    .row-status-NON.FIRMATO td:first-child{ box-shadow: inset 3px 0 0 var(--nf); }
+    .row-status-OPZIONI td:first-child{ box-shadow: inset 3px 0 0 var(--opz); }
 
     .view{ display:none; }
     .view.active{ display:block; }
+
+    @media (max-width: 768px){
+      .topbar{ padding:12px 14px; }
+      .topbar h1{ font-size:17px; }
+    }
   </style>
 </head>
 
@@ -163,9 +291,12 @@
       <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
         <div>
           <h1>Rendicontazione Contratti</h1>
-          <div class="sub">Import Excel · Dashboard OK · Export · Email · Rubrica Negozi</div>
+          <div class="sub">Import Excel · Dashboard · Export · Email negozi · Rubrica</div>
         </div>
-        <div class="mini-note text-white-50">File: <span id="fileLabelTop" class="mono">—</span></div>
+        <div id="fileLabelTopWrap" class="file-pill empty">
+          <span class="dot"></span>
+          <span>File: <span id="fileLabelTop" class="mono">nessuno</span></span>
+        </div>
       </div>
 
       <div class="top-actions">
@@ -180,94 +311,113 @@
     <div id="viewMain" class="view active">
       <div class="row g-3">
 
-        <!-- CONTROLLI -->
+        <!-- 1. IMPORT + AM/NEGOZI + STATO -->
         <div class="col-12">
-          <div class="card p-3">
-            <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between">
+          <div class="card">
+
+            <div class="card-head">
               <div>
-                <div class="section-title">Import file Excel</div>
-                <div class="hint">Seleziona il file rendicontazione. I negozi verranno associati automaticamente all’AM.</div>
+                <div class="card-title"><span class="accent"></span>Import & Filtri</div>
+                <div class="hint">Seleziona il file mensile. Verrà letto automaticamente il foglio <strong>DB Acea</strong>.</div>
               </div>
-              <div class="d-flex flex-wrap gap-2">
-                <input id="fileInput" type="file" class="form-control" accept=".xlsx,.xls" style="max-width:340px;">
+              <div class="d-flex flex-wrap gap-2 align-items-center">
+                <input id="fileInput" type="file" class="form-control" accept=".xlsx,.xls" style="max-width:300px;">
                 <button id="btnReset" class="btn btn-outline-danger">Reset</button>
               </div>
             </div>
 
-            <div class="divider"></div>
-
-            <div class="row g-2">
-              <div class="col-12 col-lg-3">
-                <div class="section-title mb-1">AM</div>
-                <select id="amFilter" class="form-select" disabled>
-                  <option value="">Tutti</option>
-                </select>
-                <div class="mini-note mt-1">Seleziona un AM per vedere solo i suoi negozi.</div>
-              </div>
-
-              <div class="col-12 col-lg-6">
-                <div class="section-title mb-1">Negozi (scrivi e aggiungi)</div>
-                <div class="d-flex gap-2 flex-wrap">
-                  <div class="flex-grow-1">
-                    <input id="dealerSearch" class="form-control" placeholder="Scrivi nome negozio e premi Aggiungi…" list="dealerList" disabled>
-                    <datalist id="dealerList"></datalist>
-                  </div>
-                  <button id="btnAddDealer" class="btn btn-tiffany" disabled>Aggiungi</button>
-                  <button id="btnClearDealers" class="btn btn-outline-secondary" disabled>Svuota</button>
-                </div>
-                <div id="dealerChips" class="d-flex flex-wrap gap-2 mt-2"></div>
-                <div class="mini-note mt-1">Se non selezioni negozi, verranno mostrati tutti quelli consentiti dall’AM.</div>
-              </div>
-
-              <div class="col-12 col-lg-3">
-                <div class="section-title mb-1">Stato (tabella + export)</div>
-                <div class="status-box d-flex flex-wrap gap-3 align-items-center">
-                  <div class="form-check">
-                    <input class="form-check-input" type="checkbox" id="stOK" disabled checked>
-                    <label class="form-check-label" for="stOK">OK</label>
-                  </div>
-                  <div class="form-check">
-                    <input class="form-check-input" type="checkbox" id="stKO" disabled checked>
-                    <label class="form-check-label" for="stKO">KO</label>
-                  </div>
-                  <div class="form-check">
-                    <input class="form-check-input" type="checkbox" id="stNF" disabled checked>
-                    <label class="form-check-label" for="stNF">NON FIRMATO</label>
-                  </div>
-                </div>
-                <div class="mini-note mt-1">La Dashboard è sempre e solo su <strong>OK</strong>.</div>
-              </div>
-            </div>
-
-            <div class="divider"></div>
-
-            <div class="row g-2 align-items-start">
-              <div class="col-12 col-lg-6">
-                <div class="d-flex flex-wrap gap-2 align-items-center">
-                  <span class="badge text-bg-secondary">Filtrate: <span id="statFiltered">0</span></span>
-                  <span class="badge text-bg-success">Totale compensi: <span id="statTotal">€ 0,00</span></span>
+            <div class="card-body-tight">
+              <div class="row g-3">
+                <div class="col-12 col-lg-3">
+                  <div class="section-title">AM</div>
+                  <select id="amFilter" class="form-select" disabled>
+                    <option value="">Tutti</option>
+                  </select>
+                  <div class="mini-note mt-1">Filtra negozi per Area Manager.</div>
                 </div>
 
-                <div class="mt-2">
-                  <div class="section-title mb-1">Email destinatario (salvata per negozio)</div>
+                <div class="col-12 col-lg-6">
+                  <div class="section-title">Negozi (scrivi e aggiungi)</div>
+                  <div class="d-flex gap-2 flex-wrap">
+                    <div class="flex-grow-1">
+                      <input id="dealerSearch" class="form-control" placeholder="Scrivi il nome negozio e premi Aggiungi…" list="dealerList" disabled>
+                      <datalist id="dealerList"></datalist>
+                    </div>
+                    <button id="btnAddDealer" class="btn btn-tiffany" disabled>Aggiungi</button>
+                    <button id="btnClearDealers" class="btn btn-outline-secondary" disabled>Svuota</button>
+                  </div>
+                  <div id="dealerChips" class="d-flex flex-wrap gap-2 mt-2"></div>
+                  <div class="mini-note mt-1">Se non selezioni negozi vedi tutti quelli dell'AM.</div>
+                </div>
+
+                <div class="col-12 col-lg-3">
+                  <div class="section-title">Stato (tabella + export)</div>
+                  <div class="status-box">
+                    <div class="form-check">
+                      <input class="form-check-input" type="checkbox" id="stOK" disabled checked>
+                      <label class="form-check-label" for="stOK">OK <span class="status-tag ok">●</span></label>
+                    </div>
+                    <div class="form-check">
+                      <input class="form-check-input" type="checkbox" id="stOPZ" disabled checked>
+                      <label class="form-check-label" for="stOPZ">OPZIONI <span class="status-tag opz">●</span></label>
+                    </div>
+                    <div class="form-check">
+                      <input class="form-check-input" type="checkbox" id="stKO" disabled checked>
+                      <label class="form-check-label" for="stKO">KO <span class="status-tag ko">●</span></label>
+                    </div>
+                    <div class="form-check">
+                      <input class="form-check-input" type="checkbox" id="stNF" disabled checked>
+                      <label class="form-check-label" for="stNF">NON FIRMATO <span class="status-tag nf">●</span></label>
+                    </div>
+                  </div>
+                  <div class="mini-note mt-1">La Dashboard è sempre calcolata su <strong>OK</strong> e <strong>OPZIONI</strong>.</div>
+                </div>
+              </div>
+
+              <div class="divider"></div>
+
+              <!-- STATS -->
+              <div class="d-flex flex-wrap gap-2 mb-3">
+                <div class="stat-card">
+                  <div class="label">Righe filtrate</div>
+                  <div class="value" id="statFiltered">0</div>
+                </div>
+                <div class="stat-card total">
+                  <div class="label">Totale compensi (filtro)</div>
+                  <div class="value" id="statTotal">€ 0,00</div>
+                </div>
+                <div class="stat-card ok">
+                  <div class="label">Pratiche OK</div>
+                  <div class="value" id="statOk">0</div>
+                </div>
+                <div class="stat-card opz">
+                  <div class="label">Opzioni</div>
+                  <div class="value" id="statOpz">0</div>
+                </div>
+              </div>
+
+              <!-- EMAIL NEGOZIO + AZIONI -->
+              <div class="row g-3 align-items-start">
+                <div class="col-12 col-lg-6">
+                  <div class="section-title">Email destinatario (per negozio singolo)</div>
                   <div class="d-flex flex-wrap gap-2">
-                    <input id="emailTo" type="email" class="form-control" placeholder="es: amministrazione@dealer.it" disabled style="min-width:260px; flex:1;">
+                    <input id="emailTo" type="email" class="form-control" placeholder="es: amministrazione@dealer.it" disabled style="min-width:240px; flex:1;">
                     <button id="btnSaveEmail" class="btn btn-outline-primary" disabled>Salva</button>
                     <button id="btnClearEmail" class="btn btn-outline-secondary" disabled>Rimuovi</button>
                   </div>
-                  <div class="mini-note mt-1">Gestibile solo quando hai selezionato <strong>1 negozio</strong> (un chip). Per gestione completa usa “Rubrica Email Negozi”.</div>
+                  <div class="mini-note mt-1">Attivo solo quando hai selezionato <strong>1 solo negozio</strong>. Per la gestione completa apri "Rubrica Email Negozi".</div>
                 </div>
-              </div>
 
-              <div class="col-12 col-lg-6">
-                <div class="section-title mb-1">Azioni</div>
-                <div class="d-flex flex-wrap gap-2 justify-content-lg-end">
-                  <button id="btnExportXlsx" class="btn btn-outline-primary" disabled>Scarica Excel (filtrato)</button>
-                  <button id="btnEmailDealer" class="btn btn-tiffany" disabled>Crea Excel negozio + Apri Mail</button>
-                  <button id="btnBulkDownload" class="btn btn-outline-dark" disabled>Scarica TUTTI i negozi AM (file separati)</button>
-                </div>
-                <div class="mini-note mt-2 text-lg-end">
-                  <span class="mono">mailto:</span> non allega automaticamente: dopo l’apertura mail allega il file appena scaricato.
+                <div class="col-12 col-lg-6">
+                  <div class="section-title">Azioni</div>
+                  <div class="d-flex flex-wrap gap-2 justify-content-lg-end">
+                    <button id="btnExportXlsx" class="btn btn-outline-primary" disabled>Scarica Excel (filtrato)</button>
+                    <button id="btnEmailDealer" class="btn btn-tiffany" disabled>Crea Excel negozio + Apri Mail</button>
+                    <button id="btnBulkDownload" class="btn btn-outline-dark" disabled>Scarica tutti i negozi dell'AM</button>
+                  </div>
+                  <div class="mini-note mt-2 text-lg-end">
+                    <span class="mono">mailto:</span> non allega automaticamente. Dopo l'apertura mail allega il file scaricato.
+                  </div>
                 </div>
               </div>
             </div>
@@ -275,59 +425,77 @@
           </div>
         </div>
 
-        <!-- DASHBOARD PIVOT -->
+        <!-- 2. DASHBOARD PIVOT -->
         <div class="col-12">
-          <div class="card p-3">
-            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+          <div class="card">
+            <div class="card-head">
               <div>
-                <strong>Dashboard – OK per negozio</strong>
-                <div class="hint">Conteggio e fatturato calcolati su <strong>STATO = OK</strong> (rispettando AM e selezione negozi).</div>
+                <div class="card-title"><span class="accent"></span>Dashboard per negozio</div>
+                <div class="hint">Conteggio e fatturato di <strong>OK</strong> e <strong>OPZIONI</strong>, rispettando AM e selezione negozi.</div>
               </div>
               <div class="d-flex flex-wrap gap-2 align-items-center">
-                <span class="badge text-bg-success">Tot OK: <span id="pivotTotalOk">0</span></span>
-                <span class="badge text-bg-dark">Tot fatturato: <span id="pivotTotalFatt">€ 0,00</span></span>
-                <span class="mini-note">Mese: <span id="pivotMonth" class="mono">—</span></span>
+                <div class="stat-card ok" style="padding:6px 10px; min-width:auto;">
+                  <div class="label">Tot OK</div>
+                  <div class="value" id="pivotTotalOk" style="font-size:14px;">0</div>
+                </div>
+                <div class="stat-card opz" style="padding:6px 10px; min-width:auto;">
+                  <div class="label">Tot Opzioni</div>
+                  <div class="value" id="pivotTotalOpz" style="font-size:14px;">0</div>
+                </div>
+                <div class="stat-card total" style="padding:6px 10px; min-width:auto;">
+                  <div class="label">Fatturato OK</div>
+                  <div class="value" id="pivotTotalFatt" style="font-size:14px;">€ 0,00</div>
+                </div>
+                <div class="stat-card opz" style="padding:6px 10px; min-width:auto;">
+                  <div class="label">Importo Opzioni</div>
+                  <div class="value" id="pivotTotalOpzAmt" style="font-size:14px;">€ 0,00</div>
+                </div>
+                <span class="mini-note ms-2">Mese: <span id="pivotMonth" class="mono">—</span></span>
               </div>
             </div>
 
-            <div class="table-wrap pivot">
-              <table class="table table-sm table-hover table-striped align-middle">
-                <thead>
-                  <tr>
-                    <th>DEALER</th>
-                    <th class="num">PRATICHE OK</th>
-                    <th class="num">TOTALE FATTURATO</th>
-                    <th style="min-width:160px;">WHATSAPP</th>
-                  </tr>
-                </thead>
-                <tbody id="pivotBody"></tbody>
-              </table>
-            </div>
-
-            <div class="mini-note mt-2">
-              Il tasto WhatsApp invia un messaggio precompilato (senza numero) con mese, OK e totale.
+            <div class="card-body-tight">
+              <div class="table-wrap pivot">
+                <table class="table table-sm table-hover table-striped align-middle">
+                  <thead>
+                    <tr>
+                      <th>Dealer</th>
+                      <th class="num">Pratiche OK</th>
+                      <th class="num">Fatturato OK</th>
+                      <th class="num">Opzioni</th>
+                      <th class="num">Importo opzioni</th>
+                      <th style="min-width:160px;">WhatsApp</th>
+                    </tr>
+                  </thead>
+                  <tbody id="pivotBody"></tbody>
+                </table>
+              </div>
+              <div class="mini-note mt-2">
+                Il tasto WhatsApp invia un messaggio precompilato con mese, OK, fatturato e (se presenti) opzioni.
+              </div>
             </div>
           </div>
         </div>
 
-        <!-- TABELLA DETTAGLIO -->
+        <!-- 3. TABELLA DETTAGLIO -->
         <div class="col-12">
-          <div class="card p-3">
-            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+          <div class="card">
+            <div class="card-head">
               <div>
-                <strong>Tabella</strong>
-                <div class="hint">Mostra tutte le righe filtrate (scroll).</div>
+                <div class="card-title"><span class="accent"></span>Tabella dettaglio</div>
+                <div class="hint">Tutte le righe filtrate. La colonna Compenso mostra il valore corretto.</div>
               </div>
               <div class="mini-note">File: <span id="fileLabel" class="mono">—</span></div>
             </div>
 
-            <div class="table-wrap">
-              <table class="table table-sm table-hover table-striped align-middle">
-                <thead><tr id="theadRow"></tr></thead>
-                <tbody id="tbody"></tbody>
-              </table>
+            <div class="card-body-tight">
+              <div class="table-wrap">
+                <table class="table table-sm table-hover table-striped align-middle">
+                  <thead><tr id="theadRow"></tr></thead>
+                  <tbody id="tbody"></tbody>
+                </table>
+              </div>
             </div>
-
           </div>
         </div>
 
@@ -338,71 +506,74 @@
     <div id="viewEmails" class="view">
       <div class="row g-3">
         <div class="col-12">
-          <div class="card p-3">
-            <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between">
+          <div class="card">
+            <div class="card-head">
               <div>
-                <div class="section-title">Rubrica Email Negozi</div>
+                <div class="card-title"><span class="accent"></span>Rubrica Email Negozi</div>
                 <div class="hint">
-                  Qui gestisci le email per <strong>tutti i negozi</strong>, capisci quali mancano e le inserisci rapidamente.
-                  I dati vengono salvati in <span class="mono">localStorage</span>.
+                  Gestisci le email per <strong>tutti i negozi</strong>. I dati vengono salvati in <span class="mono">localStorage</span>.
                 </div>
               </div>
-              <div class="d-flex flex-wrap gap-2 align-items-center">
-                <span class="badge text-bg-dark">Negozi: <span id="edTot">0</span></span>
-                <span class="badge text-bg-success">Con email: <span id="edWith">0</span></span>
-                <span class="badge text-bg-danger">Mancanti: <span id="edMissing">0</span></span>
+              <div class="d-flex flex-wrap gap-2">
+                <div class="stat-card" style="padding:6px 10px; min-width:auto;">
+                  <div class="label">Negozi</div>
+                  <div class="value" id="edTot" style="font-size:14px;">0</div>
+                </div>
+                <div class="stat-card ok" style="padding:6px 10px; min-width:auto;">
+                  <div class="label">Con email</div>
+                  <div class="value" id="edWith" style="font-size:14px;">0</div>
+                </div>
+                <div class="stat-card" style="padding:6px 10px; min-width:auto;">
+                  <div class="label">Mancanti</div>
+                  <div class="value" id="edMissing" style="font-size:14px; color:var(--ko);">0</div>
+                </div>
               </div>
             </div>
 
-            <div class="divider"></div>
-
-            <div class="row g-2 align-items-end">
-              <div class="col-12 col-lg-3">
-                <div class="section-title mb-1">AM (perimetro rubrica)</div>
-                <select id="edAmFilter" class="form-select" disabled>
-                  <option value="">Tutti</option>
-                </select>
-                <div class="mini-note mt-1">Filtra la rubrica ai negozi dell’AM selezionato.</div>
-              </div>
-
-              <div class="col-12 col-lg-5">
-                <div class="section-title mb-1">Ricerca negozio</div>
-                <input id="edSearch" class="form-control" placeholder="Cerca per nome negozio…" disabled>
-              </div>
-
-              <div class="col-12 col-lg-2">
-                <div class="section-title mb-1">Mostra</div>
-                <div class="form-check">
-                  <input class="form-check-input" type="checkbox" id="edOnlyMissing" disabled>
-                  <label class="form-check-label fw-bold" for="edOnlyMissing">Solo mancanti</label>
+            <div class="card-body-tight">
+              <div class="row g-2 align-items-end">
+                <div class="col-12 col-lg-3">
+                  <div class="section-title">AM (perimetro)</div>
+                  <select id="edAmFilter" class="form-select" disabled>
+                    <option value="">Tutti</option>
+                  </select>
+                </div>
+                <div class="col-12 col-lg-5">
+                  <div class="section-title">Ricerca negozio</div>
+                  <input id="edSearch" class="form-control" placeholder="Cerca per nome negozio…" disabled>
+                </div>
+                <div class="col-12 col-lg-2">
+                  <div class="section-title">Mostra</div>
+                  <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="edOnlyMissing" disabled>
+                    <label class="form-check-label" for="edOnlyMissing">Solo mancanti</label>
+                  </div>
+                </div>
+                <div class="col-12 col-lg-2 d-grid">
+                  <button id="edReload" class="btn btn-outline-secondary" disabled>Aggiorna</button>
                 </div>
               </div>
 
-              <div class="col-12 col-lg-2 d-grid">
-                <button id="edReload" class="btn btn-outline-secondary" disabled>Aggiorna lista</button>
+              <div class="divider"></div>
+
+              <div class="table-wrap emaildir">
+                <table class="table table-sm table-hover table-striped align-middle">
+                  <thead>
+                    <tr>
+                      <th>Dealer</th>
+                      <th>AM</th>
+                      <th>Email</th>
+                      <th>Stato</th>
+                      <th style="min-width:260px;">Azioni</th>
+                    </tr>
+                  </thead>
+                  <tbody id="edBody"></tbody>
+                </table>
               </div>
-            </div>
 
-            <div class="divider"></div>
-
-            <div class="table-wrap emaildir">
-              <table class="table table-sm table-hover table-striped align-middle">
-                <thead>
-                  <tr>
-                    <th>DEALER</th>
-                    <th>AM</th>
-                    <th>EMAIL</th>
-                    <th>STATO</th>
-                    <th style="min-width:260px;">AZIONI</th>
-                  </tr>
-                </thead>
-                <tbody id="edBody"></tbody>
-              </table>
-            </div>
-
-            <div class="mini-note mt-2">
-              Nota: “Crea Excel + Apri Mail” usa <span class="mono">mailto:</span> (non allega automaticamente). Il file viene scaricato e poi puoi allegarlo nella mail.
-              Se vuoi invio massivo automatico con allegati, serve una piccola integrazione backend.
+              <div class="mini-note mt-2">
+                "Crea Excel + Apri Mail" usa <span class="mono">mailto:</span> (non allega automaticamente). Il file viene scaricato, poi lo alleghi alla mail.
+              </div>
             </div>
 
           </div>
@@ -428,7 +599,7 @@ const DESIRED_COLUMNS = [
 const LS_EMAIL_MAP = "rendicontazione_dealerEmailMap_v1";
 
 /* =========================
-   ALIAS COLONNE (adattati al file gennaio)
+   ALIAS COLONNE
    ========================= */
 const COLUMN_ALIASES = {
   "DEALER": ["DEALER"],
@@ -436,8 +607,8 @@ const COLUMN_ALIASES = {
   "STATO": ["STATO INSERITO", "STATO", "STATO PAGAMENTO"],
   "Nome opportunità": ["Nome opportunità"],
   "Stato PDC": ["Stato PDC"],
-  "Causale annullamento": ["Causale annullamento"],
-  "Data creazione": ["Data creazione"],
+  "Causale annullamento": ["Causale annullamento", "Causale Annullamento2"],
+  "Data creazione": ["Data creazione", "Data Acquisizione"],
   "Data firma": ["Data firma"],
   "Tipo cliente": ["Tipo cliente"],
   "Partita IVA": ["Partita IVA"],
@@ -454,8 +625,9 @@ const COLUMN_ALIASES = {
   "Tipo Integration Case": ["Tipo Integration Case"],
   "Stato e Causale Annullamento": ["Stato e Causale Annullamento"],
   "Causale Ebdm": ["Causale Ebdm"],
-  "Causale Annullamento": ["Causale Annullamento"],
-  "Compenso": ["COMPENSO", "Compenso", "COMPENSO ", "Compenso "]
+  "Causale Annullamento": ["Causale Annullamento", "Causale Annullamento2"],
+  /* IMPORTANTE: si usa SEMPRE COMPENSO CORRETTO; fallback a COMPENSO */
+  "Compenso": ["COMPENSO CORRETTO", "Compenso Corretto", "COMPENSO", "Compenso"]
 };
 
 /* =========================
@@ -492,6 +664,7 @@ const btnClearDealers = el("btnClearDealers");
 const dealerChips = el("dealerChips");
 
 const stOK = el("stOK");
+const stOPZ = el("stOPZ");
 const stKO = el("stKO");
 const stNF = el("stNF");
 
@@ -505,20 +678,23 @@ const btnBulkDownload = el("btnBulkDownload");
 
 const statFiltered = el("statFiltered");
 const statTotal = el("statTotal");
+const statOk = el("statOk");
+const statOpz = el("statOpz");
 
 const fileLabelTop = el("fileLabelTop");
+const fileLabelTopWrap = el("fileLabelTopWrap");
 const fileLabel = el("fileLabel");
 
 const theadRow = el("theadRow");
 const tbody = el("tbody");
 
-/* Pivot */
 const pivotBody = el("pivotBody");
 const pivotTotalOk = el("pivotTotalOk");
+const pivotTotalOpz = el("pivotTotalOpz");
 const pivotTotalFatt = el("pivotTotalFatt");
+const pivotTotalOpzAmt = el("pivotTotalOpzAmt");
 const pivotMonth = el("pivotMonth");
 
-/* Rubrica */
 const edAmFilter = el("edAmFilter");
 const edSearch = el("edSearch");
 const edOnlyMissing = el("edOnlyMissing");
@@ -589,12 +765,19 @@ function capFirst(s){
 
 function normHeaderKey(k){
   return String(k ?? "")
-    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-    .replace(/\u00A0/g, " ")
+    .normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .replace(/ /g, " ")
     .replace(/\s+/g, " ")
     .trim()
     .toUpperCase()
     .replace(/[^\w ]+/g, "");
+}
+
+function normSheetName(k){
+  return String(k ?? "")
+    .normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .replace(/\s+/g, "")
+    .toUpperCase();
 }
 
 /* =========================
@@ -620,6 +803,7 @@ function currentMonthIt(){
 
 /* =========================
    STATO normalizzazione
+   - Accetta: OK, KO, NON FIRMATO, OPZIONE/OPZIONI
    ========================= */
 function normStatus(v){
   const s = String(v ?? "").trim().toUpperCase();
@@ -629,12 +813,14 @@ function normStatus(v){
   if (clean.includes("NON") && clean.includes("FIRM")) return "NON FIRMATO";
   if (clean === "NONFIRMATO") return "NON FIRMATO";
   if (clean === "NON FIRMATA") return "NON FIRMATO";
+  if (clean === "OPZIONE" || clean === "OPZIONI" || clean.startsWith("OPZION")) return "OPZIONI";
   return clean;
 }
 
 function selectedStatusSet(){
   const set = new Set();
   if (stOK.checked) set.add("OK");
+  if (stOPZ.checked) set.add("OPZIONI");
   if (stKO.checked) set.add("KO");
   if (stNF.checked) set.add("NON FIRMATO");
   return set;
@@ -688,12 +874,24 @@ function getStr(row, desiredLabel){
   return String(getCell(row, desiredLabel) ?? "").trim();
 }
 
-function computeTotal(rows){
-  return rows.reduce((acc,r) => acc + toNumber(getCell(r,"Compenso")), 0);
+/* Compenso: legge da COMPENSO CORRETTO (alias), trasforma -20 -> 0 */
+function getCompenso(row){
+  const raw = getCell(row, "Compenso");
+  const n = toNumber(raw);
+  if (n === -20) return 0;
+  return n;
 }
 
-function countOkRows(rows){
-  return (rows || []).reduce((acc, r) => acc + (normStatus(getCell(r,"STATO")) === "OK" ? 1 : 0), 0);
+function computeTotal(rows){
+  return rows.reduce((acc,r) => acc + getCompenso(r), 0);
+}
+
+function countByStatus(rows, status){
+  return (rows || []).reduce((acc, r) => acc + (normStatus(getCell(r,"STATO")) === status ? 1 : 0), 0);
+}
+
+function sumByStatus(rows, status){
+  return (rows || []).reduce((acc, r) => acc + (normStatus(getCell(r,"STATO")) === status ? getCompenso(r) : 0), 0);
 }
 
 /* =========================
@@ -743,7 +941,7 @@ function saveEmailForSelectedDealer(){
   const dealer = getSelectedSingleDealer();
   const mail = String(emailTo.value ?? "").trim();
   if (!dealer){ alert("Seleziona 1 negozio (un chip)."); return; }
-  if (!isValidEmail(mail)){ alert("Inserisci un’email valida."); return; }
+  if (!isValidEmail(mail)){ alert("Inserisci un'email valida."); return; }
   dealerEmailMap[dealer] = mail;
   saveDealerEmailMap();
   btnClearEmail.disabled = false;
@@ -839,6 +1037,7 @@ function buildHeader(){
   DESIRED_COLUMNS.forEach(col => {
     const th = document.createElement("th");
     th.textContent = col;
+    if (col === "Compenso") th.classList.add("num");
     theadRow.appendChild(th);
   });
 }
@@ -858,13 +1057,23 @@ function renderTable(){
 
   filteredRows.forEach(r => {
     const tr = document.createElement("tr");
+    const st = normStatus(getCell(r,"STATO"));
+    if (st) tr.classList.add("row-status-" + st.replace(/\s+/g,"."));
     DESIRED_COLUMNS.forEach(col => {
       const td = document.createElement("td");
-      const val = getCell(r, col);
       if (col === "Compenso"){
         td.classList.add("num","mono");
-        td.textContent = val === "" ? "" : fmtEUR(toNumber(val));
+        td.textContent = fmtEUR(getCompenso(r));
+      } else if (col === "STATO"){
+        const norm = normStatus(getCell(r,"STATO"));
+        const tag = {
+          "OK":"ok","KO":"ko","NON FIRMATO":"nf","OPZIONI":"opz"
+        }[norm] || "";
+        td.innerHTML = tag
+          ? `<span class="status-tag ${tag}">${escapeHtml(norm)}</span>`
+          : escapeHtml(String(getCell(r,col) ?? ""));
       } else {
+        const val = getCell(r, col);
         td.textContent = (val === undefined || val === null) ? "" : String(val);
       }
       tr.appendChild(td);
@@ -874,7 +1083,7 @@ function renderTable(){
 }
 
 /* =========================
-   DASHBOARD PIVOT (OK)
+   DASHBOARD PIVOT (OK + OPZIONI)
    ========================= */
 function getBaseScopeRowsForPivot(){
   const am = amFilter.value.trim();
@@ -899,8 +1108,10 @@ function buildPivotOk(){
 
   if (!rawRows.length){
     pivotTotalOk.textContent = "0";
+    pivotTotalOpz.textContent = "0";
     pivotTotalFatt.textContent = "€ 0,00";
-    pivotBody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-4">Importa un file per vedere la dashboard.</td></tr>`;
+    pivotTotalOpzAmt.textContent = "€ 0,00";
+    pivotBody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-4">Importa un file per vedere la dashboard.</td></tr>`;
     return;
   }
 
@@ -912,26 +1123,39 @@ function buildPivotOk(){
     if (!dealer) return;
 
     const st = normStatus(getCell(r, "STATO"));
-    if (st !== "OK") return;
+    if (st !== "OK" && st !== "OPZIONI") return;
 
-    if (!map.has(dealer)) map.set(dealer, { okCount:0, total:0 });
+    if (!map.has(dealer)) map.set(dealer, { okCount:0, okTotal:0, opzCount:0, opzTotal:0 });
     const obj = map.get(dealer);
-    obj.okCount += 1;
-    obj.total += toNumber(getCell(r, "Compenso"));
+    if (st === "OK"){
+      obj.okCount += 1;
+      obj.okTotal += getCompenso(r);
+    } else {
+      obj.opzCount += 1;
+      obj.opzTotal += getCompenso(r);
+    }
   });
 
   const rows = Array.from(map.entries())
-    .map(([dealer, v]) => ({ dealer, okCount:v.okCount, total:v.total }))
-    .sort((a,b) => (b.okCount - a.okCount) || (b.total - a.total) || a.dealer.localeCompare(b.dealer,"it"));
+    .map(([dealer, v]) => ({ dealer, ...v }))
+    .sort((a,b) =>
+      (b.okCount - a.okCount) ||
+      (b.okTotal - a.okTotal) ||
+      a.dealer.localeCompare(b.dealer,"it")
+    );
 
   const totOk = rows.reduce((acc,x)=>acc + x.okCount, 0);
-  const totFatt = rows.reduce((acc,x)=>acc + x.total, 0);
+  const totOpz = rows.reduce((acc,x)=>acc + x.opzCount, 0);
+  const totFatt = rows.reduce((acc,x)=>acc + x.okTotal, 0);
+  const totOpzAmt = rows.reduce((acc,x)=>acc + x.opzTotal, 0);
 
   pivotTotalOk.textContent = String(totOk);
+  pivotTotalOpz.textContent = String(totOpz);
   pivotTotalFatt.textContent = fmtEUR(totFatt);
+  pivotTotalOpzAmt.textContent = fmtEUR(totOpzAmt);
 
   if (!rows.length){
-    pivotBody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-4">Nessuna pratica OK nel perimetro selezionato.</td></tr>`;
+    pivotBody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-4">Nessuna pratica OK o OPZIONE nel perimetro selezionato.</td></tr>`;
     return;
   }
 
@@ -940,6 +1164,7 @@ function buildPivotOk(){
 
     const tdD = document.createElement("td");
     tdD.textContent = r.dealer;
+    tdD.style.fontWeight = "600";
     tr.appendChild(tdD);
 
     const tdC = document.createElement("td");
@@ -949,14 +1174,26 @@ function buildPivotOk(){
 
     const tdT = document.createElement("td");
     tdT.className = "num mono";
-    tdT.textContent = fmtEUR(r.total);
+    tdT.textContent = fmtEUR(r.okTotal);
     tr.appendChild(tdT);
+
+    const tdOC = document.createElement("td");
+    tdOC.className = "num mono";
+    tdOC.textContent = r.opzCount ? String(r.opzCount) : "—";
+    if (r.opzCount) tdOC.style.color = "var(--opz)";
+    tr.appendChild(tdOC);
+
+    const tdOT = document.createElement("td");
+    tdOT.className = "num mono";
+    tdOT.textContent = r.opzCount ? fmtEUR(r.opzTotal) : "—";
+    if (r.opzCount) tdOT.style.color = "var(--opz)";
+    tr.appendChild(tdOT);
 
     const tdW = document.createElement("td");
     const btn = document.createElement("button");
     btn.className = "btn btn-sm btn-wa";
     btn.textContent = "Invia WhatsApp";
-    btn.addEventListener("click", () => sendWhatsAppPivot(r.dealer, r.okCount, r.total));
+    btn.addEventListener("click", () => sendWhatsAppPivot(r.dealer, r.okCount, r.okTotal, r.opzCount, r.opzTotal));
     tdW.appendChild(btn);
     tr.appendChild(tdW);
 
@@ -964,16 +1201,20 @@ function buildPivotOk(){
   });
 }
 
-function sendWhatsAppPivot(dealerName, okCount, totalAmount){
+function sendWhatsAppPivot(dealerName, okCount, okTotal, opzCount, opzTotal){
   const mese = capFirst(monthLabel || currentMonthIt() || "");
-  const totalTxt = fmtEUR(totalAmount);
+  const okTotalTxt = fmtEUR(okTotal);
 
-  const text =
+  let text =
 `Ciao!
 È stata inviata la rendicontazione Acea per il mese di ${mese},
 hai prodotto ${okCount} contratti.
-Hai generato un totale di ${totalTxt}.
-Al tuo indirizzo mail trovi la fattura`;
+Hai generato un totale di ${okTotalTxt}.`;
+
+  if (opzCount > 0){
+    text += `\nInoltre hai ${opzCount} opzioni per un importo di ${fmtEUR(opzTotal)}.`;
+  }
+  text += `\nAl tuo indirizzo mail trovi la fattura`;
 
   const url = "https://wa.me/?text=" + encodeURIComponent(text);
   window.open(url, "_blank", "noopener");
@@ -1007,6 +1248,9 @@ function applyFilters(){
 
   statFiltered.textContent = filteredRows.length;
   statTotal.textContent = fmtEUR(computeTotal(filteredRows));
+  statOk.textContent = String(countByStatus(filteredRows,"OK"));
+  statOpz.textContent = String(countByStatus(filteredRows,"OPZIONI"));
+
   renderTable();
   buildPivotOk();
   updateEmailButtonState();
@@ -1023,8 +1267,8 @@ function buildExportAoA(rows){
 
   rows.forEach(r => {
     const line = DESIRED_COLUMNS.map(col => {
+      if (col === "Compenso") return getCompenso(r);
       const v = getCell(r,col);
-      if (col === "Compenso") return (v === "" ? "" : toNumber(v));
       return (v === undefined || v === null) ? "" : v;
     });
     aoa.push(line);
@@ -1129,16 +1373,27 @@ function updateEmailButtonState(){
 
 function openMailtoMinimal(dealerName, recipientEmail, rowsForDealer){
   const mese = capFirst(monthLabel || currentMonthIt());
-  const totalCompensi = fmtEUR(computeTotal(rowsForDealer));
-  const okCount = countOkRows(rowsForDealer);
 
-  const body =
+  const okCount = countByStatus(rowsForDealer, "OK");
+  const okTotal = sumByStatus(rowsForDealer, "OK");
+  const opzCount = countByStatus(rowsForDealer, "OPZIONI");
+  const opzTotal = sumByStatus(rowsForDealer, "OPZIONI");
+
+  let body =
 `Ciao,
 
 in allegato la rendicontazione contratti del negozio:
 - DEALER: ${dealerName}
 - Totale pratiche OK: ${okCount}
-- Totale compensi: ${totalCompensi}
+- Totale compensi: ${fmtEUR(okTotal)}`;
+
+  if (opzCount > 0){
+    body += `
+- Totale opzioni: ${opzCount}
+- Importo totale opzioni: ${fmtEUR(opzTotal)}`;
+  }
+
+  body += `
 
 In allegato il dettaglio delle pratiche che ti chiedo di verificare.
 La fattura verrà emessa in questi giorni tenendo conto di questa produzione. Dovesse mancare qualcosa ti chiedo di segnalarmelo oggi altrimenti verrà inserito nella prossima rendicontazione.
@@ -1191,7 +1446,7 @@ function emailFlowForSelectedDealer(){
   const dealer = getSelectedSingleDealer();
   const to = String(emailTo.value ?? "").trim();
   if (!dealer || !isValidEmail(to)){
-    alert("Seleziona 1 negozio (un chip) e verifica l’email.");
+    alert("Seleziona 1 negozio (un chip) e verifica l'email.");
     return;
   }
 
@@ -1250,7 +1505,7 @@ async function bulkDownloadAllDealersForAm(){
 
   alert(created
     ? `Creati ${created} file (uno per negozio).`
-    : "Nessun file creato: non ci sono righe per i negozi dell’AM con gli stati selezionati."
+    : "Nessun file creato: non ci sono righe per i negozi dell'AM con gli stati selezionati."
   );
 }
 
@@ -1313,6 +1568,7 @@ function refreshEmailDirectory(scrollTop=true){
 
     const tdD = document.createElement("td");
     tdD.textContent = item.dealer;
+    tdD.style.fontWeight = "600";
     tr.appendChild(tdD);
 
     const tdA = document.createElement("td");
@@ -1349,7 +1605,7 @@ function refreshEmailDirectory(scrollTop=true){
 
     const btnMail = document.createElement("button");
     btnMail.className = "btn btn-sm btn-tiffany";
-    btnMail.textContent = "Crea Excel + Apri Mail";
+    btnMail.textContent = "Excel + Mail";
     btnMail.disabled = !isValidEmail(inp.value);
 
     inp.addEventListener("input", () => {
@@ -1421,7 +1677,7 @@ function setEnabled(enabled){
   [
     amFilter,
     dealerSearch, btnAddDealer, btnClearDealers,
-    stOK, stKO, stNF,
+    stOK, stOPZ, stKO, stNF,
     emailTo, btnSaveEmail, btnClearEmail,
     btnExportXlsx, btnEmailDealer, btnBulkDownload
   ].forEach(x => x.disabled = !enabled);
@@ -1429,18 +1685,27 @@ function setEnabled(enabled){
   [edAmFilter, edSearch, edOnlyMissing, edReload].forEach(x => x.disabled = !enabled);
 }
 
+function findDbAceaSheetName(wb){
+  const target = "DBACEA";
+  for (const n of wb.SheetNames){
+    if (normSheetName(n) === target) return n;
+  }
+  return wb.SheetNames[0];
+}
+
 async function loadXlsxFile(file){
   if (!file) return;
   lastFilename = file.name || "";
   fileLabel.textContent = lastFilename || "—";
-  fileLabelTop.textContent = lastFilename || "—";
+  fileLabelTop.textContent = lastFilename || "nessuno";
+  fileLabelTopWrap.classList.toggle("empty", !lastFilename);
 
   monthLabel = parseMonthFromFilename(lastFilename) || "";
   if (!monthLabel) monthLabel = currentMonthIt();
 
   const buf = await file.arrayBuffer();
   const wb = XLSX.read(buf, { type:"array", cellDates:true });
-  const sheetName = wb.SheetNames[0];
+  const sheetName = findDbAceaSheetName(wb);
   const ws = wb.Sheets[sheetName];
 
   rawRows = XLSX.utils.sheet_to_json(ws, { defval:"" });
@@ -1454,6 +1719,7 @@ async function loadXlsxFile(file){
   selectedDealers.clear();
   dealerSearch.value = "";
   stOK.checked = true;
+  stOPZ.checked = true;
   stKO.checked = true;
   stNF.checked = true;
 
@@ -1474,12 +1740,16 @@ async function loadXlsxFile(file){
 buildHeader();
 setEnabled(false);
 fileLabel.textContent = "—";
-fileLabelTop.textContent = "—";
+fileLabelTop.textContent = "nessuno";
 statFiltered.textContent = "0";
 statTotal.textContent = "€ 0,00";
+statOk.textContent = "0";
+statOpz.textContent = "0";
 pivotMonth.textContent = "—";
 pivotTotalOk.textContent = "0";
+pivotTotalOpz.textContent = "0";
 pivotTotalFatt.textContent = "€ 0,00";
+pivotTotalOpzAmt.textContent = "€ 0,00";
 renderTable();
 buildPivotOk();
 refreshEmailDirectory();
@@ -1500,7 +1770,8 @@ btnReset.addEventListener("click", () => {
 
   fileInput.value = "";
   fileLabel.textContent = "—";
-  fileLabelTop.textContent = "—";
+  fileLabelTop.textContent = "nessuno";
+  fileLabelTopWrap.classList.add("empty");
 
   amFilter.innerHTML = `<option value="">Tutti</option>`;
   edAmFilter.innerHTML = `<option value="">Tutti</option>`;
@@ -1508,6 +1779,7 @@ btnReset.addEventListener("click", () => {
   dealerSearch.value = "";
 
   stOK.checked = true;
+  stOPZ.checked = true;
   stKO.checked = true;
   stNF.checked = true;
 
@@ -1522,13 +1794,17 @@ btnReset.addEventListener("click", () => {
 
   statFiltered.textContent = "0";
   statTotal.textContent = "€ 0,00";
+  statOk.textContent = "0";
+  statOpz.textContent = "0";
   dealerChips.innerHTML = `<span class="mini-note">Nessun negozio selezionato.</span>`;
   tbody.innerHTML = `<tr><td class="text-center text-muted py-4" colspan="${DESIRED_COLUMNS.length}">Importa un file per iniziare.</td></tr>`;
 
   pivotMonth.textContent = "—";
   pivotTotalOk.textContent = "0";
+  pivotTotalOpz.textContent = "0";
   pivotTotalFatt.textContent = "€ 0,00";
-  pivotBody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-4">Importa un file per vedere la dashboard.</td></tr>`;
+  pivotTotalOpzAmt.textContent = "€ 0,00";
+  pivotBody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-4">Importa un file per vedere la dashboard.</td></tr>`;
 
   refreshEmailDirectory();
   setActiveView("main");
@@ -1546,7 +1822,7 @@ btnAddDealer.addEventListener("click", () => {
 
   const allowed = getDealersAllowedByAm(amFilter.value);
   if (!allowed.has(name)){
-    alert("Questo negozio non è disponibile per l’AM selezionato (o non esiste nel file).");
+    alert("Questo negozio non è disponibile per l'AM selezionato (o non esiste nel file).");
     return;
   }
   selectedDealers.add(name);
@@ -1565,7 +1841,7 @@ btnClearDealers.addEventListener("click", () => {
   applyFilters();
 });
 
-[stOK, stKO, stNF].forEach(ch => ch.addEventListener("change", applyFilters));
+[stOK, stOPZ, stKO, stNF].forEach(ch => ch.addEventListener("change", applyFilters));
 
 emailTo.addEventListener("input", () => {
   const dealer = getSelectedSingleDealer();
