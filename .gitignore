@@ -1,0 +1,20 @@
+# Sistemi
+.DS_Store
+*.log
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Variabili d'ambiente / segreti
+.env
+.env.local
+**/.env
+
+# Editor
+.vscode/
+.idea/
+
+# Backup macOS
+*~
+.*.swp
