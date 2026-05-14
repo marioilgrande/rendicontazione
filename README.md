@@ -6,7 +6,7 @@ Pannello HTML + server locale per gestire la rendicontazione mensile dei contrat
 
 ```
 RENDICONTAZIONE/
-├── rendinew.html              ← pannello principale (importa Excel, filtra, dashboard, export, invio)
+├── index.html              ← pannello principale (importa Excel, filtra, dashboard, export, invio)
 ├── PROCEDURA_SERVER.png       ← infografica con la procedura di avvio del server
 ├── PROCEDURA_SERVER.svg       ← versione vettoriale dell'infografica
 ├── backup maggio26.html       ← snapshot precedente del pannello
@@ -42,7 +42,7 @@ Vedi [`server/README.md`](server/README.md) per setup e avvio.
 ## Avvio rapido
 
 1. Doppio click su `AVVIA SERVER.command` (sul Desktop) → il server si avvia.
-2. Apri `rendinew.html` nel browser.
+2. Apri `index.html` nel browser.
 3. Importa il file Excel del mese, filtra, dashboard.
 4. Per l'invio massivo: clicca "📧 Invia mail a tutti i negozi", controlla l'anteprima, conferma.
 

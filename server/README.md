@@ -53,7 +53,7 @@ Lascia il Terminale aperto.
 
 ## 3. Uso
 
-1. Apri `rendinew.html`.
+1. Apri `index.html` (o https://rendicontazione.vercel.app).
 2. Importa il file Excel del mese.
 3. Seleziona AM (o tutti).
 4. Clicca **"Invia mail a tutti i negozi"**.
