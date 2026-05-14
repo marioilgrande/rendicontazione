@@ -278,6 +278,90 @@
     .view{ display:none; }
     .view.active{ display:block; }
 
+    /* ===== MODALE BULK SEND ===== */
+    .modal-backdrop-custom{
+      position:fixed; inset:0;
+      background: rgba(15,23,42,.55);
+      backdrop-filter: blur(2px);
+      z-index:100;
+      display:none;
+      align-items:center; justify-content:center;
+      padding: 24px;
+    }
+    .modal-backdrop-custom.active{ display:flex; }
+    .modal-card{
+      background:#fff;
+      border-radius:16px;
+      width: 100%;
+      max-width: 980px;
+      max-height: 90vh;
+      display:flex; flex-direction:column;
+      box-shadow: var(--shadow-lg);
+      overflow:hidden;
+    }
+    .modal-head{
+      padding:16px 20px;
+      border-bottom:1px solid var(--border);
+      display:flex; align-items:center; justify-content:space-between;
+      background: linear-gradient(120deg, var(--tiffany), var(--tiffany-dark));
+      color:#fff;
+    }
+    .modal-head .title{ font-weight:800; font-size:16px; }
+    .modal-head .close{
+      background:transparent; border:none; color:#fff;
+      font-size:22px; font-weight:900; cursor:pointer;
+      line-height:1; padding:0 4px;
+    }
+    .modal-body{ padding:14px 18px; overflow:auto; }
+    .modal-foot{
+      padding:12px 18px;
+      border-top:1px solid var(--border);
+      display:flex; flex-wrap:wrap; gap:10px;
+      align-items:center; justify-content:space-between;
+      background:#fafbfc;
+    }
+
+    .preview-table{ font-size:12.5px; }
+    .preview-table th{
+      background:#f1f5f9 !important;
+      color:#334155 !important;
+      text-transform: uppercase;
+      font-size:11px;
+      letter-spacing:.4px;
+    }
+    .row-warn{ background:#fff4dc !important; }
+    .row-warn td{ background:#fff4dc !important; }
+
+    .log-box{
+      max-height: 340px;
+      overflow:auto;
+      background:#0b1220;
+      color:#cbd5e1;
+      border-radius:10px;
+      padding:10px 12px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size:12px;
+      line-height:1.6;
+    }
+    .log-line.ok{ color:#86efac; }
+    .log-line.err{ color:#fca5a5; }
+    .log-line.warn{ color:#fcd34d; }
+    .log-line.info{ color:#93c5fd; }
+
+    .progress-bar-wrap{
+      height:8px; background:#e2e8f0; border-radius:6px; overflow:hidden;
+    }
+    .progress-bar-fill{
+      height:100%; width:0;
+      background: linear-gradient(90deg, var(--tiffany), var(--tiffany-dark));
+      transition: width .25s ease;
+    }
+
+    #serverStatus.online{ color: var(--ok) !important; border-color:#bfecea !important; background:var(--ok-bg) !important; }
+    #serverStatus.online .dot{ background:var(--ok); }
+    #serverStatus.offline{ color: var(--ko) !important; border-color:#f3d7d7 !important; background:var(--ko-bg) !important; }
+    #serverStatus.offline .dot{ background:var(--ko); }
+
     @media (max-width: 768px){
       .topbar{ padding:12px 14px; }
       .topbar h1{ font-size:17px; }
@@ -337,17 +421,18 @@
                 </div>
 
                 <div class="col-12 col-lg-6">
-                  <div class="section-title">Negozi (scrivi e aggiungi)</div>
+                  <div class="section-title">Negozi</div>
                   <div class="d-flex gap-2 flex-wrap">
-                    <div class="flex-grow-1">
-                      <input id="dealerSearch" class="form-control" placeholder="Scrivi il nome negozio e premi Aggiungi…" list="dealerList" disabled>
+                    <button id="btnShowSelected" class="btn btn-tiffany" disabled>📋 Visualizza selezionati</button>
+                    <div class="flex-grow-1" style="min-width:180px;">
+                      <input id="dealerSearch" class="form-control" placeholder="Oppure scrivi un negozio e Aggiungi…" list="dealerList" disabled>
                       <datalist id="dealerList"></datalist>
                     </div>
-                    <button id="btnAddDealer" class="btn btn-tiffany" disabled>Aggiungi</button>
+                    <button id="btnAddDealer" class="btn btn-outline-primary" disabled>Aggiungi</button>
                     <button id="btnClearDealers" class="btn btn-outline-secondary" disabled>Svuota</button>
                   </div>
                   <div id="dealerChips" class="d-flex flex-wrap gap-2 mt-2"></div>
-                  <div class="mini-note mt-1">Se non selezioni negozi vedi tutti quelli dell'AM.</div>
+                  <div class="mini-note mt-1">Click "Visualizza selezionati" per scegliere visivamente. Se non selezioni nulla vedi tutti i negozi dell'AM.</div>
                 </div>
 
                 <div class="col-12 col-lg-3">
@@ -412,11 +497,18 @@
                   <div class="section-title">Azioni</div>
                   <div class="d-flex flex-wrap gap-2 justify-content-lg-end">
                     <button id="btnExportXlsx" class="btn btn-outline-primary" disabled>Scarica Excel (filtrato)</button>
-                    <button id="btnEmailDealer" class="btn btn-tiffany" disabled>Crea Excel negozio + Apri Mail</button>
+                    <button id="btnEmailDealer" class="btn btn-tiffany" disabled>Crea Excel + Apri Mail (singolo)</button>
                     <button id="btnBulkDownload" class="btn btn-outline-dark" disabled>Scarica tutti i negozi dell'AM</button>
                   </div>
+                  <div class="d-flex flex-wrap gap-2 justify-content-lg-end mt-2">
+                    <span id="serverStatus" class="file-pill empty" style="background:#fff; border:1px solid var(--border-strong); color:var(--muted);">
+                      <span class="dot"></span>
+                      <span>Server: <span id="serverStatusTxt">offline</span></span>
+                    </span>
+                    <button id="btnBulkSendMail" class="btn btn-success" disabled>📧 Invia mail a tutti i negozi</button>
+                  </div>
                   <div class="mini-note mt-2 text-lg-end">
-                    <span class="mono">mailto:</span> non allega automaticamente. Dopo l'apertura mail allega il file scaricato.
+                    L'invio massivo richiede il server locale attivo (vedi <span class="mono">server/README.md</span>).
                   </div>
                 </div>
               </div>
@@ -554,6 +646,14 @@
                 </div>
               </div>
 
+              <div class="d-flex flex-wrap gap-2 align-items-center mt-2">
+                <span class="section-title m-0">Backup rubrica:</span>
+                <button id="edExport" class="btn btn-sm btn-outline-primary">⬇ Esporta JSON</button>
+                <button id="edImport" class="btn btn-sm btn-outline-success">⬆ Importa JSON</button>
+                <input id="edImportFile" type="file" accept=".json,application/json" style="display:none;">
+                <span class="mini-note ms-2">Esporta da un browser/dominio e importa nell'altro (es. da Vercel → file locale).</span>
+              </div>
+
               <div class="divider"></div>
 
               <div class="table-wrap emaildir">
@@ -582,6 +682,150 @@
     </div>
   </div>
 
+  <!-- MODALE SELEZIONE NEGOZI -->
+  <div id="dealerModal" class="modal-backdrop-custom">
+    <div class="modal-card" style="max-width:720px;">
+      <div class="modal-head">
+        <div class="title">Selezione negozi</div>
+        <button class="close" id="dealerModalClose" type="button">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+          <input id="dmSearch" class="form-control" placeholder="Cerca…" style="max-width:260px;">
+          <button id="dmAll" class="btn btn-sm btn-outline-secondary" type="button">Seleziona tutti</button>
+          <button id="dmNone" class="btn btn-sm btn-outline-secondary" type="button">Deseleziona tutti</button>
+          <button id="dmInvert" class="btn btn-sm btn-outline-secondary" type="button">Inverti</button>
+          <span class="mini-note ms-auto"><strong>Selezionati: <span id="dmCount">0</span> / <span id="dmTot">0</span></strong></span>
+        </div>
+
+        <div class="mini-note mb-2">
+          Toglie la spunta dai negozi che <strong>non</strong> vuoi includere. Quelli spuntati verranno usati per tabella, dashboard e invio massivo.
+        </div>
+
+        <div class="table-wrap" style="max-height:55vh;">
+          <table class="table table-sm table-striped align-middle preview-table">
+            <thead>
+              <tr>
+                <th style="width:36px;">
+                  <input type="checkbox" id="dmMaster" class="form-check-input" checked>
+                </th>
+                <th>Dealer</th>
+                <th>AM</th>
+                <th>Email</th>
+              </tr>
+            </thead>
+            <tbody id="dmBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="modal-foot">
+        <div class="mini-note">AM corrente: <strong id="dmAmLabel">Tutti</strong></div>
+        <div class="d-flex gap-2">
+          <button id="dmCancel" class="btn btn-outline-secondary" type="button">Annulla</button>
+          <button id="dmConfirm" class="btn btn-tiffany" type="button">Conferma selezione</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODALE INVIO MASSIVO -->
+  <div id="bulkModal" class="modal-backdrop-custom">
+    <div class="modal-card">
+      <div class="modal-head">
+        <div class="title" id="bulkModalTitle">Anteprima invio massivo</div>
+        <button class="close" id="bulkModalClose" type="button">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <!-- STEP: PREVIEW -->
+        <div id="bulkStepPreview">
+          <div class="d-flex flex-wrap gap-2 mb-2">
+            <div class="stat-card" style="padding:6px 10px; min-width:auto;">
+              <div class="label">Negozi totali</div>
+              <div class="value" id="bpTot" style="font-size:14px;">0</div>
+            </div>
+            <div class="stat-card ok" style="padding:6px 10px; min-width:auto;">
+              <div class="label">Pronti</div>
+              <div class="value" id="bpReady" style="font-size:14px;">0</div>
+            </div>
+            <div class="stat-card" style="padding:6px 10px; min-width:auto;">
+              <div class="label">Senza email</div>
+              <div class="value" id="bpNoMail" style="font-size:14px; color:var(--ko);">0</div>
+            </div>
+            <div class="stat-card opz" style="padding:6px 10px; min-width:auto;">
+              <div class="label">Tot OK</div>
+              <div class="value" id="bpOk" style="font-size:14px;">0</div>
+            </div>
+            <div class="stat-card total" style="padding:6px 10px; min-width:auto;">
+              <div class="label">Tot fatturato OK</div>
+              <div class="value" id="bpTotal" style="font-size:14px;">€ 0,00</div>
+            </div>
+          </div>
+
+          <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+            <div class="mini-note flex-grow-1">
+              Spunta i negozi a cui vuoi inviare. I negozi senza email sono <strong>esclusi automaticamente</strong>.
+            </div>
+            <button id="bpSelectAll" class="btn btn-sm btn-outline-secondary" type="button">Seleziona tutti</button>
+            <button id="bpSelectNone" class="btn btn-sm btn-outline-secondary" type="button">Deseleziona tutti</button>
+          </div>
+
+          <div class="table-wrap" style="max-height:50vh;">
+            <table class="table table-sm table-striped align-middle preview-table">
+              <thead>
+                <tr>
+                  <th style="width:36px;">
+                    <input type="checkbox" id="bpMasterCheck" class="form-check-input" checked title="Seleziona/deseleziona tutti">
+                  </th>
+                  <th>Dealer</th>
+                  <th>Email</th>
+                  <th class="num">OK</th>
+                  <th class="num">Fatt. OK</th>
+                  <th class="num">Opzioni</th>
+                  <th class="num">Imp. Opz.</th>
+                  <th>Stato</th>
+                </tr>
+              </thead>
+              <tbody id="bpBody"></tbody>
+            </table>
+          </div>
+          <div class="mini-note mt-2">
+            <strong>Selezionati: <span id="bpSelected">0</span> / <span id="bpSelectedOf">0</span></strong>
+          </div>
+        </div>
+
+        <!-- STEP: SENDING / LOG -->
+        <div id="bulkStepSending" style="display:none;">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <div>
+              <strong id="sendStatusLabel">Invio in corso…</strong>
+              <span class="mini-note ms-2"><span id="sendProgressTxt">0 / 0</span></span>
+            </div>
+            <div class="d-flex gap-2">
+              <span class="pill-ok">✅ <span id="sendOkCount">0</span></span>
+              <span class="pill-missing">❌ <span id="sendErrCount">0</span></span>
+            </div>
+          </div>
+          <div class="progress-bar-wrap mb-3">
+            <div class="progress-bar-fill" id="sendProgressBar"></div>
+          </div>
+          <div class="log-box" id="sendLog"></div>
+        </div>
+      </div>
+
+      <div class="modal-foot">
+        <div class="mini-note" id="bulkFootHint">Controlla l'elenco. Quando sei pronto, clicca "Invia ora".</div>
+        <div class="d-flex gap-2">
+          <button id="bulkBtnCancel" class="btn btn-outline-secondary" type="button">Annulla</button>
+          <button id="bulkBtnSend" class="btn btn-tiffany" type="button">📧 Invia ora</button>
+          <button id="bulkBtnClose" class="btn btn-success" type="button" style="display:none;">Chiudi</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
 <script>
 /* =========================
    CONFIG
@@ -597,6 +841,9 @@ const DESIRED_COLUMNS = [
 ];
 
 const LS_EMAIL_MAP = "rendicontazione_dealerEmailMap_v1";
+
+/* Backend locale per invio massivo */
+const SERVER_URL = "http://localhost:5170";
 
 /* =========================
    ALIAS COLONNE
@@ -661,7 +908,22 @@ const dealerSearch = el("dealerSearch");
 const dealerList = el("dealerList");
 const btnAddDealer = el("btnAddDealer");
 const btnClearDealers = el("btnClearDealers");
+const btnShowSelected = el("btnShowSelected");
 const dealerChips = el("dealerChips");
+
+const dealerModal = el("dealerModal");
+const dealerModalClose = el("dealerModalClose");
+const dmSearch = el("dmSearch");
+const dmAll = el("dmAll");
+const dmNone = el("dmNone");
+const dmInvert = el("dmInvert");
+const dmMaster = el("dmMaster");
+const dmBody = el("dmBody");
+const dmCount = el("dmCount");
+const dmTot = el("dmTot");
+const dmAmLabel = el("dmAmLabel");
+const dmCancel = el("dmCancel");
+const dmConfirm = el("dmConfirm");
 
 const stOK = el("stOK");
 const stOPZ = el("stOPZ");
@@ -695,6 +957,37 @@ const pivotTotalFatt = el("pivotTotalFatt");
 const pivotTotalOpzAmt = el("pivotTotalOpzAmt");
 const pivotMonth = el("pivotMonth");
 
+const btnBulkSendMail = el("btnBulkSendMail");
+const serverStatus = el("serverStatus");
+const serverStatusTxt = el("serverStatusTxt");
+
+const bulkModal = el("bulkModal");
+const bulkModalTitle = el("bulkModalTitle");
+const bulkModalClose = el("bulkModalClose");
+const bulkStepPreview = el("bulkStepPreview");
+const bulkStepSending = el("bulkStepSending");
+const bulkBtnCancel = el("bulkBtnCancel");
+const bulkBtnSend = el("bulkBtnSend");
+const bulkBtnClose = el("bulkBtnClose");
+const bulkFootHint = el("bulkFootHint");
+const bpBody = el("bpBody");
+const bpTot = el("bpTot");
+const bpReady = el("bpReady");
+const bpNoMail = el("bpNoMail");
+const bpOk = el("bpOk");
+const bpTotal = el("bpTotal");
+const bpMasterCheck = el("bpMasterCheck");
+const bpSelectAll = el("bpSelectAll");
+const bpSelectNone = el("bpSelectNone");
+const bpSelected = el("bpSelected");
+const bpSelectedOf = el("bpSelectedOf");
+const sendStatusLabel = el("sendStatusLabel");
+const sendProgressTxt = el("sendProgressTxt");
+const sendProgressBar = el("sendProgressBar");
+const sendLog = el("sendLog");
+const sendOkCount = el("sendOkCount");
+const sendErrCount = el("sendErrCount");
+
 const edAmFilter = el("edAmFilter");
 const edSearch = el("edSearch");
 const edOnlyMissing = el("edOnlyMissing");
@@ -703,6 +996,9 @@ const edBody = el("edBody");
 const edTot = el("edTot");
 const edWith = el("edWith");
 const edMissing = el("edMissing");
+const edExport = el("edExport");
+const edImport = el("edImport");
+const edImportFile = el("edImportFile");
 
 /* =========================
    HELPERS
@@ -1653,6 +1949,473 @@ function refreshEmailDirectory(scrollTop=true){
 }
 
 /* =========================
+   MODALE SELEZIONE NEGOZI
+   ========================= */
+let dmCurrentList = []; // { dealer, am, email, checked }
+
+function openDealerModal(){
+  const am = amFilter.value.trim();
+  const allowed = Array.from(getDealersAllowedByAm(am)).sort((a,b)=>a.localeCompare(b,"it"));
+  const dealerToAm = getDealerToAmMap();
+
+  const hasPrev = selectedDealers.size > 0;
+  dmCurrentList = allowed.map(d => ({
+    dealer: d,
+    am: dealerToAm.get(d) || "",
+    email: String(dealerEmailMap[d] || "").trim(),
+    checked: hasPrev ? selectedDealers.has(d) : true
+  }));
+
+  dmAmLabel.textContent = am || "Tutti";
+  dmSearch.value = "";
+  renderDealerModal();
+  dealerModal.classList.add("active");
+}
+
+function closeDealerModal(){ dealerModal.classList.remove("active"); }
+
+function renderDealerModal(){
+  const q = String(dmSearch.value || "").trim().toLowerCase();
+  const filtered = dmCurrentList.filter(x => !q || x.dealer.toLowerCase().includes(q));
+
+  dmBody.innerHTML = "";
+  if (!filtered.length){
+    dmBody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-4">Nessun negozio trovato.</td></tr>`;
+  } else {
+    filtered.forEach(item => {
+      const tr = document.createElement("tr");
+
+      const tdC = document.createElement("td");
+      const chk = document.createElement("input");
+      chk.type = "checkbox";
+      chk.className = "form-check-input dm-row-check";
+      chk.checked = item.checked;
+      chk.dataset.dealer = item.dealer;
+      chk.addEventListener("change", () => {
+        const found = dmCurrentList.find(x => x.dealer === item.dealer);
+        if (found) found.checked = !!chk.checked;
+        updateDmCount();
+      });
+      tdC.appendChild(chk);
+      tr.appendChild(tdC);
+
+      const td1 = document.createElement("td");
+      td1.textContent = item.dealer;
+      td1.style.fontWeight = "600";
+      tr.appendChild(td1);
+
+      const td2 = document.createElement("td");
+      td2.textContent = item.am || "—";
+      tr.appendChild(td2);
+
+      const td3 = document.createElement("td");
+      td3.innerHTML = isValidEmail(item.email)
+        ? escapeHtml(item.email)
+        : `<span class="pill-missing">MANCANTE</span>`;
+      tr.appendChild(td3);
+
+      dmBody.appendChild(tr);
+    });
+  }
+  updateDmCount();
+}
+
+function updateDmCount(){
+  const tot = dmCurrentList.length;
+  const sel = dmCurrentList.filter(x => x.checked).length;
+  dmCount.textContent = String(sel);
+  dmTot.textContent = String(tot);
+  dmMaster.checked = (sel === tot && tot > 0);
+  dmMaster.indeterminate = (sel > 0 && sel < tot);
+}
+
+function setAllDmSelection(value){
+  dmCurrentList.forEach(x => { x.checked = !!value; });
+  renderDealerModal();
+}
+
+function invertDmSelection(){
+  dmCurrentList.forEach(x => { x.checked = !x.checked; });
+  renderDealerModal();
+}
+
+function confirmDealerModal(){
+  const picked = dmCurrentList.filter(x => x.checked).map(x => x.dealer);
+
+  // Se tutti spuntati -> equivale a "nessun filtro" -> svuoto la set per coerenza
+  if (picked.length === dmCurrentList.length){
+    selectedDealers.clear();
+  } else {
+    selectedDealers = new Set(picked);
+  }
+  renderDealerChips();
+  applyFilters();
+  closeDealerModal();
+}
+
+btnShowSelected.addEventListener("click", openDealerModal);
+dealerModalClose.addEventListener("click", closeDealerModal);
+dmCancel.addEventListener("click", closeDealerModal);
+dmConfirm.addEventListener("click", confirmDealerModal);
+dmAll.addEventListener("click", () => setAllDmSelection(true));
+dmNone.addEventListener("click", () => setAllDmSelection(false));
+dmInvert.addEventListener("click", invertDmSelection);
+dmMaster.addEventListener("change", () => setAllDmSelection(dmMaster.checked));
+dmSearch.addEventListener("input", () => {
+  clearTimeout(window.__dmT);
+  window.__dmT = setTimeout(renderDealerModal, 120);
+});
+
+/* =========================
+   BULK SEND VIA SERVER LOCALE
+   ========================= */
+let serverOnline = false;
+let bulkAbort = false;
+
+async function checkServerStatus(){
+  try{
+    const ctrl = new AbortController();
+    const t = setTimeout(()=>ctrl.abort(), 1200);
+    const r = await fetch(`${SERVER_URL}/api/health`, { signal: ctrl.signal });
+    clearTimeout(t);
+    if (!r.ok) throw new Error("health failed");
+    const j = await r.json();
+    serverOnline = !!j?.ok;
+    serverStatus.classList.toggle("online", serverOnline);
+    serverStatus.classList.toggle("offline", !serverOnline);
+    serverStatus.classList.remove("empty");
+    serverStatusTxt.textContent = serverOnline
+      ? `online (${j?.smtp?.from || "SMTP ok"})`
+      : "online (SMTP non configurato)";
+  } catch(e){
+    serverOnline = false;
+    serverStatus.classList.remove("online");
+    serverStatus.classList.add("offline");
+    serverStatus.classList.remove("empty");
+    serverStatusTxt.textContent = "offline – avvia il server (npm start)";
+  }
+  updateBulkSendMailButton();
+}
+
+function updateBulkSendMailButton(){
+  btnBulkSendMail.disabled = !(serverOnline && rawRows.length > 0);
+}
+
+/* Calcola l'elenco invii in base ai filtri attivi
+   (AM, dealer selezionati, stati selezionati). */
+function computeBulkPreviewItems(){
+  const stSet = selectedStatusSet();
+  const am = amFilter.value.trim();
+  const allowedDealers = getDealersAllowedByAm(am);
+  const dealerSetActive = selectedDealers.size ? selectedDealers : null;
+
+  const scope = rawRows.filter(r => {
+    const rAm = getStr(r,"AM");
+    const rDealer = getStr(r,"DEALER");
+    if (am && rAm !== am) return false;
+    if (am && !allowedDealers.has(rDealer)) return false;
+    if (dealerSetActive && !dealerSetActive.has(rDealer)) return false;
+    const st = normStatus(getCell(r,"STATO"));
+    if (!stSet.has(st)) return false;
+    return true;
+  });
+
+  const byDealer = new Map();
+  scope.forEach(r => {
+    const dealer = getStr(r,"DEALER");
+    if (!dealer) return;
+    if (!byDealer.has(dealer)) byDealer.set(dealer, []);
+    byDealer.get(dealer).push(r);
+  });
+
+  const items = [];
+  Array.from(byDealer.keys())
+    .sort((a,b)=>a.localeCompare(b,"it"))
+    .forEach(dealer => {
+      const rs = byDealer.get(dealer);
+      const okCount = countByStatus(rs, "OK");
+      const okTotal = sumByStatus(rs, "OK");
+      const opzCount = countByStatus(rs, "OPZIONI");
+      const opzTotal = sumByStatus(rs, "OPZIONI");
+      const email = String(dealerEmailMap[dealer] || "").trim();
+
+      const rowsOut = rs.map(r => {
+        const out = {};
+        DESIRED_COLUMNS.forEach(col => {
+          out[col] = (col === "Compenso") ? getCompenso(r) : getCell(r, col);
+        });
+        return out;
+      });
+
+      items.push({
+        dealer, email,
+        okCount, okTotal, opzCount, opzTotal,
+        rows: rowsOut,
+        emailValid: isValidEmail(email)
+      });
+    });
+
+  return items;
+}
+
+function openBulkModal(items){
+  bulkAbort = false;
+  bulkModal.classList.add("active");
+  bulkModalTitle.textContent = "Anteprima invio massivo";
+  bulkStepPreview.style.display = "block";
+  bulkStepSending.style.display = "none";
+  bulkBtnSend.style.display = "inline-block";
+  bulkBtnCancel.style.display = "inline-block";
+  bulkBtnClose.style.display = "none";
+  bulkFootHint.textContent = `Mese: ${capFirst(monthLabel || currentMonthIt() || "—")} · Mittente: dal server locale.`;
+
+  const ready = items.filter(x => x.emailValid);
+  const noMail = items.filter(x => !x.emailValid);
+  const totOk = items.reduce((a,x)=>a + x.okCount, 0);
+  const totFatt = items.reduce((a,x)=>a + x.okTotal, 0);
+
+  bpTot.textContent = String(items.length);
+  bpReady.textContent = String(ready.length);
+  bpNoMail.textContent = String(noMail.length);
+  bpOk.textContent = String(totOk);
+  bpTotal.textContent = fmtEUR(totFatt);
+
+  bpBody.innerHTML = "";
+  if (!items.length){
+    bpBody.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-4">Nessun negozio nel perimetro attuale.</td></tr>`;
+    bulkBtnSend.disabled = true;
+    bpSelected.textContent = "0";
+    bpSelectedOf.textContent = "0";
+    return;
+  }
+
+  items.forEach((it, idx) => {
+    it._selected = it.emailValid;
+
+    const tr = document.createElement("tr");
+    if (!it.emailValid) tr.classList.add("row-warn");
+    tr.dataset.idx = String(idx);
+
+    const tdC = document.createElement("td");
+    const chk = document.createElement("input");
+    chk.type = "checkbox";
+    chk.className = "form-check-input bp-row-check";
+    chk.checked = it.emailValid;
+    chk.disabled = !it.emailValid;
+    chk.dataset.idx = String(idx);
+    tdC.appendChild(chk);
+    tr.appendChild(tdC);
+
+    const td1 = document.createElement("td");
+    td1.textContent = it.dealer;
+    td1.style.fontWeight = "600";
+    tr.appendChild(td1);
+
+    const td2 = document.createElement("td");
+    td2.innerHTML = it.emailValid
+      ? escapeHtml(it.email)
+      : `<span class="pill-missing">MANCANTE</span>`;
+    tr.appendChild(td2);
+
+    const td3 = document.createElement("td");
+    td3.className = "num mono";
+    td3.textContent = String(it.okCount);
+    tr.appendChild(td3);
+
+    const td4 = document.createElement("td");
+    td4.className = "num mono";
+    td4.textContent = fmtEUR(it.okTotal);
+    tr.appendChild(td4);
+
+    const td5 = document.createElement("td");
+    td5.className = "num mono";
+    td5.textContent = it.opzCount ? String(it.opzCount) : "—";
+    if (it.opzCount) td5.style.color = "var(--opz)";
+    tr.appendChild(td5);
+
+    const td6 = document.createElement("td");
+    td6.className = "num mono";
+    td6.textContent = it.opzCount ? fmtEUR(it.opzTotal) : "—";
+    if (it.opzCount) td6.style.color = "var(--opz)";
+    tr.appendChild(td6);
+
+    const td7 = document.createElement("td");
+    td7.innerHTML = it.emailValid
+      ? `<span class="pill-ok">PRONTO</span>`
+      : `<span class="pill-missing">SALTATO</span>`;
+    tr.appendChild(td7);
+
+    bpBody.appendChild(tr);
+  });
+
+  bpBody.querySelectorAll(".bp-row-check").forEach(chk => {
+    chk.addEventListener("change", () => {
+      const idx = Number(chk.dataset.idx);
+      if (currentBulkItems[idx]) currentBulkItems[idx]._selected = !!chk.checked;
+      updateBulkSelectedCount();
+    });
+  });
+
+  updateBulkSelectedCount();
+}
+
+function updateBulkSelectedCount(){
+  const items = currentBulkItems || [];
+  const ready = items.filter(x => x.emailValid);
+  const selected = ready.filter(x => x._selected).length;
+  bpSelected.textContent = String(selected);
+  bpSelectedOf.textContent = String(ready.length);
+  bulkBtnSend.disabled = (selected === 0);
+  if (bpMasterCheck){
+    bpMasterCheck.checked = (selected === ready.length && ready.length > 0);
+    bpMasterCheck.indeterminate = (selected > 0 && selected < ready.length);
+  }
+}
+
+function setAllBulkSelection(value){
+  (currentBulkItems || []).forEach((it, idx) => {
+    if (!it.emailValid) return;
+    it._selected = !!value;
+    const chk = bpBody.querySelector(`.bp-row-check[data-idx="${idx}"]`);
+    if (chk) chk.checked = !!value;
+  });
+  updateBulkSelectedCount();
+}
+
+function closeBulkModal(){
+  bulkModal.classList.remove("active");
+}
+
+function logLine(kind, text){
+  const div = document.createElement("div");
+  div.className = `log-line ${kind}`;
+  const now = new Date();
+  const hh = String(now.getHours()).padStart(2,"0");
+  const mm = String(now.getMinutes()).padStart(2,"0");
+  const ss = String(now.getSeconds()).padStart(2,"0");
+  div.textContent = `[${hh}:${mm}:${ss}] ${text}`;
+  sendLog.appendChild(div);
+  sendLog.scrollTop = sendLog.scrollHeight;
+}
+
+async function sendOneItem(item, monthLabelNow){
+  const payload = {
+    monthLabel: monthLabelNow,
+    items: [{
+      dealer: item.dealer,
+      email: item.email,
+      okCount: item.okCount,
+      okTotal: item.okTotal,
+      opzCount: item.opzCount,
+      opzTotal: item.opzTotal,
+      rows: item.rows
+    }]
+  };
+  const r = await fetch(`${SERVER_URL}/api/send-bulk`, {
+    method:"POST",
+    headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify(payload)
+  });
+  const j = await r.json();
+  if (!r.ok || !j?.ok) throw new Error(j?.error || `HTTP ${r.status}`);
+  const res = j.results?.[0];
+  if (res?.status !== "sent") throw new Error(res?.reason || "invio fallito");
+  return res;
+}
+
+async function startBulkSend(items){
+  const toSend = items.filter(x => x.emailValid && x._selected);
+  if (!toSend.length){
+    alert("Nessun negozio selezionato con email valida.");
+    return;
+  }
+
+  bulkAbort = false;
+  bulkModalTitle.textContent = "Invio massivo in corso";
+  bulkStepPreview.style.display = "none";
+  bulkStepSending.style.display = "block";
+  bulkBtnSend.style.display = "none";
+  bulkBtnCancel.textContent = "Interrompi";
+  bulkBtnCancel.style.display = "inline-block";
+  bulkBtnClose.style.display = "none";
+  bulkFootHint.textContent = `Sto inviando ${toSend.length} mail. Non chiudere la finestra.`;
+
+  sendLog.innerHTML = "";
+  sendOkCount.textContent = "0";
+  sendErrCount.textContent = "0";
+  sendProgressBar.style.width = "0%";
+  sendProgressTxt.textContent = `0 / ${toSend.length}`;
+  sendStatusLabel.textContent = "Invio in corso…";
+
+  const monthLabelNow = monthLabel || currentMonthIt() || "";
+  logLine("info", `Avvio invio di ${toSend.length} mail (mese: ${monthLabelNow}).`);
+
+  let ok = 0, err = 0;
+  for (let i = 0; i < toSend.length; i++){
+    if (bulkAbort){
+      logLine("warn", "Invio interrotto dall'utente.");
+      break;
+    }
+    const it = toSend[i];
+    logLine("info", `→ ${it.dealer} <${it.email}> …`);
+    try{
+      await sendOneItem(it, monthLabelNow);
+      ok++;
+      sendOkCount.textContent = String(ok);
+      logLine("ok", `✔ inviata a ${it.dealer}`);
+    } catch(e){
+      err++;
+      sendErrCount.textContent = String(err);
+      logLine("err", `✖ errore per ${it.dealer}: ${String(e?.message || e)}`);
+    }
+    const done = i + 1;
+    sendProgressTxt.textContent = `${done} / ${toSend.length}`;
+    sendProgressBar.style.width = `${(done / toSend.length) * 100}%`;
+  }
+
+  sendStatusLabel.textContent = bulkAbort ? "Interrotto" : "Completato";
+  bulkBtnCancel.style.display = "none";
+  bulkBtnClose.style.display = "inline-block";
+  bulkFootHint.textContent = `Risultato: ${ok} inviate, ${err} errori${bulkAbort ? ", interrotto" : ""}.`;
+  logLine("info", `Totale: ${ok} ok, ${err} errori.`);
+}
+
+bulkModalClose.addEventListener("click", closeBulkModal);
+bulkBtnClose.addEventListener("click", closeBulkModal);
+bulkBtnCancel.addEventListener("click", () => {
+  if (bulkStepSending.style.display === "block"){
+    bulkAbort = true;
+  } else {
+    closeBulkModal();
+  }
+});
+
+let currentBulkItems = [];
+btnBulkSendMail.addEventListener("click", async () => {
+  await checkServerStatus();
+  if (!serverOnline){
+    alert("Server locale non raggiungibile.\n\nApri il Terminale e lancia:\n  cd \"HTML MARIO/RENDICONTAZIONE/server\"\n  npm start");
+    return;
+  }
+  currentBulkItems = computeBulkPreviewItems();
+  if (!currentBulkItems.length){
+    alert("Nessun negozio nel perimetro attuale.");
+    return;
+  }
+  openBulkModal(currentBulkItems);
+});
+
+bulkBtnSend.addEventListener("click", () => startBulkSend(currentBulkItems));
+
+bpSelectAll.addEventListener("click", () => setAllBulkSelection(true));
+bpSelectNone.addEventListener("click", () => setAllBulkSelection(false));
+bpMasterCheck.addEventListener("change", () => setAllBulkSelection(bpMasterCheck.checked));
+
+/* polling stato server ogni 8s */
+checkServerStatus();
+setInterval(checkServerStatus, 8000);
+
+/* =========================
    VIEW SWITCH
    ========================= */
 function setActiveView(which){
@@ -1676,7 +2439,7 @@ function setActiveView(which){
 function setEnabled(enabled){
   [
     amFilter,
-    dealerSearch, btnAddDealer, btnClearDealers,
+    dealerSearch, btnAddDealer, btnClearDealers, btnShowSelected,
     stOK, stOPZ, stKO, stNF,
     emailTo, btnSaveEmail, btnClearEmail,
     btnExportXlsx, btnEmailDealer, btnBulkDownload
@@ -1732,6 +2495,7 @@ async function loadXlsxFile(file){
 
   applyFilters();
   refreshEmailDirectory();
+  updateBulkSendMailButton();
 }
 
 /* =========================
@@ -1808,6 +2572,7 @@ btnReset.addEventListener("click", () => {
 
   refreshEmailDirectory();
   setActiveView("main");
+  updateBulkSendMailButton();
 });
 
 amFilter.addEventListener("change", () => {
@@ -1860,6 +2625,67 @@ btnExportXlsx.addEventListener("click", () => {
 btnEmailDealer.addEventListener("click", emailFlowForSelectedDealer);
 btnBulkDownload.addEventListener("click", bulkDownloadAllDealersForAm);
 
+function exportEmailMap(){
+  const data = {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    count: Object.keys(dealerEmailMap || {}).length,
+    map: dealerEmailMap || {}
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const stamp = new Date().toISOString().slice(0,10);
+  a.href = url;
+  a.download = `rubrica-negozi-${stamp}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 500);
+}
+
+async function importEmailMapFromFile(file){
+  if (!file) return;
+  try{
+    const txt = await file.text();
+    const parsed = JSON.parse(txt);
+
+    let incoming = null;
+    if (parsed && typeof parsed === "object"){
+      if (parsed.map && typeof parsed.map === "object") incoming = parsed.map;
+      else incoming = parsed; // formato grezzo { "Dealer X": "mail@..." }
+    }
+    if (!incoming || typeof incoming !== "object"){
+      alert("File non valido: struttura JSON non riconosciuta.");
+      return;
+    }
+
+    let added = 0, updated = 0, skipped = 0;
+    Object.entries(incoming).forEach(([dealer, email]) => {
+      const d = String(dealer || "").trim();
+      const m = String(email || "").trim();
+      if (!d || !isValidEmail(m)){ skipped++; return; }
+      if (dealerEmailMap[d] === m){ return; }
+      if (dealerEmailMap[d]) updated++;
+      else added++;
+      dealerEmailMap[d] = m;
+    });
+
+    saveDealerEmailMap();
+    refreshEmailDirectory(false);
+    syncEmailFromDealerSelection();
+    alert(`Importazione completata:\n• ${added} nuovi\n• ${updated} aggiornati\n• ${skipped} ignorati (email non valida o vuota)`);
+  } catch(e){
+    alert("Errore di lettura JSON: " + String(e?.message || e));
+  } finally {
+    edImportFile.value = "";
+  }
+}
+
+edExport.addEventListener("click", exportEmailMap);
+edImport.addEventListener("click", () => edImportFile.click());
+edImportFile.addEventListener("change", (e) => importEmailMapFromFile(e.target.files?.[0]));
+
 edAmFilter.addEventListener("change", () => refreshEmailDirectory());
 edSearch.addEventListener("input", () => {
   clearTimeout(window.__edT);
@@ -1870,3 +2696,4 @@ edReload.addEventListener("click", () => refreshEmailDirectory());
 </script>
 </body>
 </html>
+
