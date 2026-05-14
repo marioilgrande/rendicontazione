@@ -421,17 +421,18 @@
                 </div>
 
                 <div class="col-12 col-lg-6">
-                  <div class="section-title">Negozi (scrivi e aggiungi)</div>
+                  <div class="section-title">Negozi</div>
                   <div class="d-flex gap-2 flex-wrap">
-                    <div class="flex-grow-1">
-                      <input id="dealerSearch" class="form-control" placeholder="Scrivi il nome negozio e premi Aggiungi…" list="dealerList" disabled>
+                    <button id="btnShowSelected" class="btn btn-tiffany" disabled>📋 Visualizza selezionati</button>
+                    <div class="flex-grow-1" style="min-width:180px;">
+                      <input id="dealerSearch" class="form-control" placeholder="Oppure scrivi un negozio e Aggiungi…" list="dealerList" disabled>
                       <datalist id="dealerList"></datalist>
                     </div>
-                    <button id="btnAddDealer" class="btn btn-tiffany" disabled>Aggiungi</button>
+                    <button id="btnAddDealer" class="btn btn-outline-primary" disabled>Aggiungi</button>
                     <button id="btnClearDealers" class="btn btn-outline-secondary" disabled>Svuota</button>
                   </div>
                   <div id="dealerChips" class="d-flex flex-wrap gap-2 mt-2"></div>
-                  <div class="mini-note mt-1">Se non selezioni negozi vedi tutti quelli dell'AM.</div>
+                  <div class="mini-note mt-1">Click "Visualizza selezionati" per scegliere visivamente. Se non selezioni nulla vedi tutti i negozi dell'AM.</div>
                 </div>
 
                 <div class="col-12 col-lg-3">
@@ -673,6 +674,54 @@
     </div>
   </div>
 
+  <!-- MODALE SELEZIONE NEGOZI -->
+  <div id="dealerModal" class="modal-backdrop-custom">
+    <div class="modal-card" style="max-width:720px;">
+      <div class="modal-head">
+        <div class="title">Selezione negozi</div>
+        <button class="close" id="dealerModalClose" type="button">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+          <input id="dmSearch" class="form-control" placeholder="Cerca…" style="max-width:260px;">
+          <button id="dmAll" class="btn btn-sm btn-outline-secondary" type="button">Seleziona tutti</button>
+          <button id="dmNone" class="btn btn-sm btn-outline-secondary" type="button">Deseleziona tutti</button>
+          <button id="dmInvert" class="btn btn-sm btn-outline-secondary" type="button">Inverti</button>
+          <span class="mini-note ms-auto"><strong>Selezionati: <span id="dmCount">0</span> / <span id="dmTot">0</span></strong></span>
+        </div>
+
+        <div class="mini-note mb-2">
+          Toglie la spunta dai negozi che <strong>non</strong> vuoi includere. Quelli spuntati verranno usati per tabella, dashboard e invio massivo.
+        </div>
+
+        <div class="table-wrap" style="max-height:55vh;">
+          <table class="table table-sm table-striped align-middle preview-table">
+            <thead>
+              <tr>
+                <th style="width:36px;">
+                  <input type="checkbox" id="dmMaster" class="form-check-input" checked>
+                </th>
+                <th>Dealer</th>
+                <th>AM</th>
+                <th>Email</th>
+              </tr>
+            </thead>
+            <tbody id="dmBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="modal-foot">
+        <div class="mini-note">AM corrente: <strong id="dmAmLabel">Tutti</strong></div>
+        <div class="d-flex gap-2">
+          <button id="dmCancel" class="btn btn-outline-secondary" type="button">Annulla</button>
+          <button id="dmConfirm" class="btn btn-tiffany" type="button">Conferma selezione</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- MODALE INVIO MASSIVO -->
   <div id="bulkModal" class="modal-backdrop-custom">
     <div class="modal-card">
@@ -851,7 +900,22 @@ const dealerSearch = el("dealerSearch");
 const dealerList = el("dealerList");
 const btnAddDealer = el("btnAddDealer");
 const btnClearDealers = el("btnClearDealers");
+const btnShowSelected = el("btnShowSelected");
 const dealerChips = el("dealerChips");
+
+const dealerModal = el("dealerModal");
+const dealerModalClose = el("dealerModalClose");
+const dmSearch = el("dmSearch");
+const dmAll = el("dmAll");
+const dmNone = el("dmNone");
+const dmInvert = el("dmInvert");
+const dmMaster = el("dmMaster");
+const dmBody = el("dmBody");
+const dmCount = el("dmCount");
+const dmTot = el("dmTot");
+const dmAmLabel = el("dmAmLabel");
+const dmCancel = el("dmCancel");
+const dmConfirm = el("dmConfirm");
 
 const stOK = el("stOK");
 const stOPZ = el("stOPZ");
@@ -1874,6 +1938,124 @@ function refreshEmailDirectory(scrollTop=true){
 }
 
 /* =========================
+   MODALE SELEZIONE NEGOZI
+   ========================= */
+let dmCurrentList = []; // { dealer, am, email, checked }
+
+function openDealerModal(){
+  const am = amFilter.value.trim();
+  const allowed = Array.from(getDealersAllowedByAm(am)).sort((a,b)=>a.localeCompare(b,"it"));
+  const dealerToAm = getDealerToAmMap();
+
+  const hasPrev = selectedDealers.size > 0;
+  dmCurrentList = allowed.map(d => ({
+    dealer: d,
+    am: dealerToAm.get(d) || "",
+    email: String(dealerEmailMap[d] || "").trim(),
+    checked: hasPrev ? selectedDealers.has(d) : true
+  }));
+
+  dmAmLabel.textContent = am || "Tutti";
+  dmSearch.value = "";
+  renderDealerModal();
+  dealerModal.classList.add("active");
+}
+
+function closeDealerModal(){ dealerModal.classList.remove("active"); }
+
+function renderDealerModal(){
+  const q = String(dmSearch.value || "").trim().toLowerCase();
+  const filtered = dmCurrentList.filter(x => !q || x.dealer.toLowerCase().includes(q));
+
+  dmBody.innerHTML = "";
+  if (!filtered.length){
+    dmBody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-4">Nessun negozio trovato.</td></tr>`;
+  } else {
+    filtered.forEach(item => {
+      const tr = document.createElement("tr");
+
+      const tdC = document.createElement("td");
+      const chk = document.createElement("input");
+      chk.type = "checkbox";
+      chk.className = "form-check-input dm-row-check";
+      chk.checked = item.checked;
+      chk.dataset.dealer = item.dealer;
+      chk.addEventListener("change", () => {
+        const found = dmCurrentList.find(x => x.dealer === item.dealer);
+        if (found) found.checked = !!chk.checked;
+        updateDmCount();
+      });
+      tdC.appendChild(chk);
+      tr.appendChild(tdC);
+
+      const td1 = document.createElement("td");
+      td1.textContent = item.dealer;
+      td1.style.fontWeight = "600";
+      tr.appendChild(td1);
+
+      const td2 = document.createElement("td");
+      td2.textContent = item.am || "—";
+      tr.appendChild(td2);
+
+      const td3 = document.createElement("td");
+      td3.innerHTML = isValidEmail(item.email)
+        ? escapeHtml(item.email)
+        : `<span class="pill-missing">MANCANTE</span>`;
+      tr.appendChild(td3);
+
+      dmBody.appendChild(tr);
+    });
+  }
+  updateDmCount();
+}
+
+function updateDmCount(){
+  const tot = dmCurrentList.length;
+  const sel = dmCurrentList.filter(x => x.checked).length;
+  dmCount.textContent = String(sel);
+  dmTot.textContent = String(tot);
+  dmMaster.checked = (sel === tot && tot > 0);
+  dmMaster.indeterminate = (sel > 0 && sel < tot);
+}
+
+function setAllDmSelection(value){
+  dmCurrentList.forEach(x => { x.checked = !!value; });
+  renderDealerModal();
+}
+
+function invertDmSelection(){
+  dmCurrentList.forEach(x => { x.checked = !x.checked; });
+  renderDealerModal();
+}
+
+function confirmDealerModal(){
+  const picked = dmCurrentList.filter(x => x.checked).map(x => x.dealer);
+
+  // Se tutti spuntati -> equivale a "nessun filtro" -> svuoto la set per coerenza
+  if (picked.length === dmCurrentList.length){
+    selectedDealers.clear();
+  } else {
+    selectedDealers = new Set(picked);
+  }
+  renderDealerChips();
+  applyFilters();
+  closeDealerModal();
+}
+
+btnShowSelected.addEventListener("click", openDealerModal);
+dealerModalClose.addEventListener("click", closeDealerModal);
+dmCancel.addEventListener("click", closeDealerModal);
+dmConfirm.addEventListener("click", confirmDealerModal);
+dmAll.addEventListener("click", () => setAllDmSelection(true));
+dmNone.addEventListener("click", () => setAllDmSelection(false));
+dmInvert.addEventListener("click", invertDmSelection);
+dmMaster.addEventListener("change", () => setAllDmSelection(dmMaster.checked));
+dmSearch.addEventListener("input", () => {
+  clearTimeout(window.__dmT);
+  window.__dmT = setTimeout(renderDealerModal, 120);
+});
+
+/* =========================
    BULK SEND VIA SERVER LOCALE
    ========================= */
 let serverOnline = false;
@@ -2246,7 +2428,7 @@ function setActiveView(which){
 function setEnabled(enabled){
   [
     amFilter,
-    dealerSearch, btnAddDealer, btnClearDealers,
+    dealerSearch, btnAddDealer, btnClearDealers, btnShowSelected,
     stOK, stOPZ, stKO, stNF,
     emailTo, btnSaveEmail, btnClearEmail,
     btnExportXlsx, btnEmailDealer, btnBulkDownload
