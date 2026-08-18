@@ -1247,7 +1247,13 @@ function getStr(row, desiredLabel){
 }
 
 /* Compenso: legge da COMPENSO CORRETTO (alias), trasforma -20 -> 0 */
+/* Stati che non generano compenso: forzati a 0 qualunque cosa
+   ci sia nel file (protegge da errori di compilazione del mese). */
+const ZERO_COMPENSO_STATUSES = ["KO", "NON FIRMATO"];
+
 function getCompenso(row){
+  const st = normStatus(getCell(row, "STATO"));
+  if (ZERO_COMPENSO_STATUSES.includes(st)) return 0;
   const raw = getCell(row, "Compenso");
   const n = toNumber(raw);
   if (n === -20) return 0;
