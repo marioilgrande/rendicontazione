@@ -478,8 +478,6 @@
                       <label class="form-check-label" for="stALT">ALTRI STATI <span class="status-tag alt">●</span></label>
                     </div>
                   </div>
-                  <div id="unknownStatusAlert" class="mini-note mt-1" style="display:none;"></div>
-                  <div id="sourceInfo" class="mini-note mt-1" style="display:none;"></div>
                   <div class="mini-note mt-1">La Dashboard è sempre calcolata su <strong>OK</strong> e <strong>OPZIONI</strong>.</div>
                 </div>
               </div>
@@ -963,8 +961,6 @@ const stNF = el("stNF");
 const stNC = el("stNC");
 const stIL = el("stIL");
 const stALT = el("stALT");
-const unknownStatusAlert = el("unknownStatusAlert");
-const sourceInfo = el("sourceInfo");
 
 const emailTo = el("emailTo");
 const btnSaveEmail = el("btnSaveEmail");
@@ -1180,83 +1176,6 @@ function statusAllowed(st, stSet){
 function anyStatusSelected(){
   return stOK.checked || stOPZ.checked || stKO.checked ||
          stNF.checked || stNC.checked || stIL.checked || stALT.checked;
-}
-
-/* Mostra da dove sta leggendo: foglio contratti, colonna compenso,
-   foglio opzioni. Serve ad accorgersi subito se il tracciato cambia. */
-function refreshSourceInfo(){
-  if (!sourceInfo) return;
-  if (!rawRows.length){
-    sourceInfo.style.display = "none";
-    return;
-  }
-  const colComp = resolvedHeaders["Compenso"] || "—";
-  const compOk = normHeaderKey(colComp).includes("CORRETTO");
-  const totOpz = Array.from(opzByDealer.values()).reduce((a,o)=>a+o.total, 0);
-  const nOpz = Array.from(opzByDealer.values()).reduce((a,o)=>a+o.count, 0);
-
-  let html = `<span class="status-tag ok">✓</span> Contratti dal foglio <strong>${escapeHtml(contrattiSheetName)}</strong>`
-           + ` · compenso da <strong>${escapeHtml(String(colComp).trim())}</strong>`
-           + (compOk ? "" : ` <em>(nel file non c'è la colonna COMPENSO CORRETTO)</em>`);
-
-  if (runnerSplitInfo.length){
-    const gruppi = {};
-    runnerSplitInfo.forEach(x => { (gruppi[x.base] = gruppi[x.base] || []).push(x); });
-    Object.entries(gruppi).forEach(([base, arr]) => {
-      const al = (RUNNER_SPLIT[base] || {}).alias || {};
-      const alTxt = Object.entries(al).map(([a,b]) => `${escapeHtml(a)} → ${escapeHtml(b)}`).join(", ");
-      html += `<br><span class="status-tag il">⇄</span> <strong>${escapeHtml(base)}</strong> diviso per runner in `
-            + `<strong>${arr.length}</strong> righe: `
-            + arr.map(x => `${escapeHtml(x.runner)} (${x.ok} OK)`).join(", ")
-            + (alTxt ? ` · riassegnati: ${alTxt}` : "");
-    });
-  }
-  runnerMoveInfo.forEach(m => {
-    html += `<br><span class="status-tag il">→</span> Correzione file: ${m.righe} ${m.righe === 1 ? "pratica" : "pratiche"} di `
-          + `<strong>${escapeHtml(m.runner)}</strong> (${m.ok} OK) ${m.righe === 1 ? "spostata" : "spostate"} da ${escapeHtml(m.base)} `
-          + `a <strong>${escapeHtml(m.verso)}</strong>`
-          + (m.ricalcoli.length
-              ? ` · compenso ricalcolato sul listino ${escapeHtml(m.verso)} (${m.ricalcoli[0].listino}): `
-                + m.ricalcoli.map(x => `${fmtEUR(x.da)} → ${fmtEUR(x.a)}`).join(", ")
-              : "");
-  });
-
-  if (opzSheetName){
-    html += `<br><span class="status-tag opz">✓</span> Opzioni dal foglio <strong>${escapeHtml(opzSheetName)}</strong>: `
-          + `<strong>${nOpz}</strong> su <strong>${opzByDealer.size}</strong> negozi, tot ${fmtEUR(totOpz)}`;
-    if (opzOrfane.count){
-      html += `<br><span class="status-tag alt">!</span> ${opzOrfane.count} opzioni (${fmtEUR(opzOrfane.total)}) non attribuite a nessun negozio`;
-      if (opzOrfane.nomi.size){
-        html += `: ${escapeHtml(Array.from(opzOrfane.nomi).slice(0,4).join(", "))}`;
-        if (opzOrfane.nomi.size > 4) html += ` +altri ${opzOrfane.nomi.size-4}`;
-      }
-    }
-  }
-  sourceInfo.style.display = "block";
-  sourceInfo.innerHTML = html;
-}
-
-/* Avvisa se nel file ci sono stati non riconosciuti */
-function refreshUnknownStatusAlert(){
-  if (!unknownStatusAlert) return;
-  if (!rawRows.length){
-    unknownStatusAlert.style.display = "none";
-    return;
-  }
-  const found = new Set();
-  rawRows.forEach(r => {
-    const st = normStatus(getCell(r,"STATO"));
-    if (st && !KNOWN_STATUSES.includes(st)) found.add(st);
-  });
-  if (!found.size){
-    unknownStatusAlert.style.display = "none";
-    return;
-  }
-  const list = Array.from(found).sort().map(escapeHtml).join(", ");
-  unknownStatusAlert.style.display = "block";
-  unknownStatusAlert.innerHTML =
-    `<span class="status-tag alt">!</span> Stati non standard nel file: <strong>${list}</strong>. ` +
-    `Spunta <strong>ALTRI STATI</strong> per includerli.`;
 }
 
 /* =========================
@@ -1723,7 +1642,6 @@ function applyFilters(){
   statOk.textContent = String(countByStatus(filteredRows,"OK"));
   statOpz.textContent = String(countOpzioniScope(filteredRows));
 
-  refreshUnknownStatusAlert();
   renderTable();
   buildPivotOk();
   updateEmailButtonState();
@@ -2973,7 +2891,6 @@ async function loadXlsxFile(file){
   buildResolvedHeaders();
   applyRunnerSplit();
   buildOpzioniIndex(wb);
-  refreshSourceInfo();
   buildAmDealerIndex();
   populateAmFilter();
   refreshDealerDatalist();
@@ -3036,7 +2953,6 @@ btnReset.addEventListener("click", () => {
   opzSheetName = "";
   opzByDealer = new Map();
   opzOrfane = { count:0, total:0, nomi:new Set() };
-  if (sourceInfo) sourceInfo.style.display = "none";
   runnerSplitInfo = [];
   runnerMoveInfo = [];
   selectedDealers.clear();
