@@ -413,7 +413,7 @@
             <div class="card-head">
               <div>
                 <div class="card-title"><span class="accent"></span>Import & Filtri</div>
-                <div class="hint">Seleziona il file mensile. Verrà letto automaticamente il foglio <strong>DB Acea</strong>.</div>
+                <div class="hint">Seleziona il file mensile. Vengono letti da soli il foglio contratti (<strong>DB CONTRATTI</strong> o <strong>DB Acea</strong>) e, se c'è, il foglio <strong>DB OPZIONI ACEA</strong>.</div>
               </div>
               <div class="d-flex flex-wrap gap-2 align-items-center">
                 <input id="fileInput" type="file" class="form-control" accept=".xlsx,.xls" style="max-width:300px;">
@@ -479,6 +479,7 @@
                     </div>
                   </div>
                   <div id="unknownStatusAlert" class="mini-note mt-1" style="display:none;"></div>
+                  <div id="sourceInfo" class="mini-note mt-1" style="display:none;"></div>
                   <div class="mini-note mt-1">La Dashboard è sempre calcolata su <strong>OK</strong> e <strong>OPZIONI</strong>.</div>
                 </div>
               </div>
@@ -913,6 +914,10 @@ let amToDealers = new Map();
 let selectedDealers = new Set();
 let dealerEmailMap = loadDealerEmailMap();
 let resolvedHeaders = {};
+let contrattiSheetName = "";
+let opzSheetName = "";
+let opzByDealer = new Map();
+let opzOrfane = { count:0, total:0, nomi:new Set() };
 
 /* =========================
    UI
@@ -958,6 +963,7 @@ const stNC = el("stNC");
 const stIL = el("stIL");
 const stALT = el("stALT");
 const unknownStatusAlert = el("unknownStatusAlert");
+const sourceInfo = el("sourceInfo");
 
 const emailTo = el("emailTo");
 const btnSaveEmail = el("btnSaveEmail");
@@ -1175,6 +1181,38 @@ function anyStatusSelected(){
          stNF.checked || stNC.checked || stIL.checked || stALT.checked;
 }
 
+/* Mostra da dove sta leggendo: foglio contratti, colonna compenso,
+   foglio opzioni. Serve ad accorgersi subito se il tracciato cambia. */
+function refreshSourceInfo(){
+  if (!sourceInfo) return;
+  if (!rawRows.length){
+    sourceInfo.style.display = "none";
+    return;
+  }
+  const colComp = resolvedHeaders["Compenso"] || "—";
+  const compOk = normHeaderKey(colComp).includes("CORRETTO");
+  const totOpz = Array.from(opzByDealer.values()).reduce((a,o)=>a+o.total, 0);
+  const nOpz = Array.from(opzByDealer.values()).reduce((a,o)=>a+o.count, 0);
+
+  let html = `<span class="status-tag ok">✓</span> Contratti dal foglio <strong>${escapeHtml(contrattiSheetName)}</strong>`
+           + ` · compenso da <strong>${escapeHtml(String(colComp).trim())}</strong>`
+           + (compOk ? "" : ` <em>(nel file non c'è la colonna COMPENSO CORRETTO)</em>`);
+
+  if (opzSheetName){
+    html += `<br><span class="status-tag opz">✓</span> Opzioni dal foglio <strong>${escapeHtml(opzSheetName)}</strong>: `
+          + `<strong>${nOpz}</strong> su <strong>${opzByDealer.size}</strong> negozi, tot ${fmtEUR(totOpz)}`;
+    if (opzOrfane.count){
+      html += `<br><span class="status-tag alt">!</span> ${opzOrfane.count} opzioni (${fmtEUR(opzOrfane.total)}) non attribuite a nessun negozio`;
+      if (opzOrfane.nomi.size){
+        html += `: ${escapeHtml(Array.from(opzOrfane.nomi).slice(0,4).join(", "))}`;
+        if (opzOrfane.nomi.size > 4) html += ` +altri ${opzOrfane.nomi.size-4}`;
+      }
+    }
+  }
+  sourceInfo.style.display = "block";
+  sourceInfo.innerHTML = html;
+}
+
 /* Avvisa se nel file ci sono stati non riconosciuti */
 function refreshUnknownStatusAlert(){
   if (!unknownStatusAlert) return;
@@ -1266,6 +1304,17 @@ function computeTotal(rows){
 
 function countByStatus(rows, status){
   return (rows || []).reduce((acc, r) => acc + (normStatus(getCell(r,"STATO")) === status ? 1 : 0), 0);
+}
+
+/* Numero totale di opzioni dei negozi presenti nelle righe date
+   (vecchio formato dentro le righe + nuovo formato dal foglio). */
+function countOpzioniScope(rows){
+  let n = countByStatus(rows, "OPZIONI");
+  if (opzByDealer.size){
+    const visti = new Set((rows || []).map(r => getStr(r, "DEALER")).filter(Boolean));
+    visti.forEach(d => { n += (opzByDealer.get(d)?.count || 0); });
+  }
+  return n;
 }
 
 function sumByStatus(rows, status){
@@ -1496,6 +1545,10 @@ function buildPivotOk(){
 
   const scopeRows = getBaseScopeRowsForPivot();
   const map = new Map();
+  const ensure = (d) => {
+    if (!map.has(d)) map.set(d, { okCount:0, okTotal:0, opzCount:0, opzTotal:0 });
+    return map.get(d);
+  };
 
   scopeRows.forEach(r => {
     const dealer = getStr(r, "DEALER");
@@ -1504,16 +1557,28 @@ function buildPivotOk(){
     const st = normStatus(getCell(r, "STATO"));
     if (st !== "OK" && st !== "OPZIONI") return;
 
-    if (!map.has(dealer)) map.set(dealer, { okCount:0, okTotal:0, opzCount:0, opzTotal:0 });
-    const obj = map.get(dealer);
+    const obj = ensure(dealer);
     if (st === "OK"){
       obj.okCount += 1;
       obj.okTotal += getCompenso(r);
     } else {
+      /* vecchio formato: opzione come riga del DB contratti */
       obj.opzCount += 1;
       obj.opzTotal += getCompenso(r);
     }
   });
+
+  /* nuovo formato: opzioni dal foglio dedicato, solo per i negozi
+     che rientrano nel perimetro AM/selezione attuale */
+  if (opzByDealer.size){
+    const inScope = new Set(scopeRows.map(r => getStr(r, "DEALER")).filter(Boolean));
+    opzByDealer.forEach((o, dealer) => {
+      if (!inScope.has(dealer)) return;
+      const obj = ensure(dealer);
+      obj.opzCount += o.count;
+      obj.opzTotal += o.total;
+    });
+  }
 
   const rows = Array.from(map.entries())
     .map(([dealer, v]) => ({ dealer, ...v }))
@@ -1627,7 +1692,7 @@ function applyFilters(){
   statFiltered.textContent = filteredRows.length;
   statTotal.textContent = fmtEUR(computeTotal(filteredRows));
   statOk.textContent = String(countByStatus(filteredRows,"OK"));
-  statOpz.textContent = String(countByStatus(filteredRows,"OPZIONI"));
+  statOpz.textContent = String(countOpzioniScope(filteredRows));
 
   refreshUnknownStatusAlert();
   renderTable();
@@ -1662,7 +1727,7 @@ function buildExportAoA(rows){
   return aoa;
 }
 
-function exportXlsx(rows, filename){
+function exportXlsx(rows, filename, opzRows){
   if (!rows.length) return;
 
   const aoa = buildExportAoA(rows);
@@ -1731,6 +1796,34 @@ function exportXlsx(rows, filename){
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Rendicontazione");
+
+  /* secondo foglio col dettaglio opzioni, se il negozio ne ha */
+  if (opzRows && opzRows.length){
+    const head = ["NUMERO CASO","CLIENTE","OGGETTO","DATA","SOTTO AGENZIA","COMPENSO"];
+    const oaoa = [head];
+    opzRows.forEach(o => oaoa.push([
+      o.caso ?? "", o.cliente ?? "", o.oggetto ?? "", o.data ?? "", o.sottoAgenzia ?? "",
+      Number(o.compenso) || 0
+    ]));
+    const tot = opzRows.reduce((a,o)=>a + (Number(o.compenso)||0), 0);
+    const totRow = Array(head.length).fill("");
+    totRow[0] = "TOTALE OPZIONI";
+    totRow[head.length-1] = tot;
+    oaoa.push(totRow);
+
+    const ws2 = XLSX.utils.aoa_to_sheet(oaoa);
+    ws2["!cols"] = [{wch:14},{wch:28},{wch:34},{wch:12},{wch:30},{wch:14}];
+    for (let c=0; c<head.length; c++){
+      const a = XLSX.utils.encode_cell({ r:0, c });
+      if (ws2[a]) ws2[a].s = headerGrey;
+    }
+    for (let r=1; r<oaoa.length; r++){
+      const a = XLSX.utils.encode_cell({ r, c:head.length-1 });
+      if (ws2[a]){ ws2[a].z = '#,##0.00'; ws2[a].s = compYellow; }
+    }
+    XLSX.utils.book_append_sheet(wb, ws2, "Opzioni");
+  }
+
   XLSX.writeFile(wb, filename);
 }
 
@@ -1755,8 +1848,9 @@ function openMailtoMinimal(dealerName, recipientEmail, rowsForDealer){
 
   const okCount = countByStatus(rowsForDealer, "OK");
   const okTotal = sumByStatus(rowsForDealer, "OK");
-  const opzCount = countByStatus(rowsForDealer, "OPZIONI");
-  const opzTotal = sumByStatus(rowsForDealer, "OPZIONI");
+  const opz = opzioniDealer(dealerName, rowsForDealer);
+  const opzCount = opz.count;
+  const opzTotal = opz.total;
 
   let body =
 `Ciao,
@@ -1816,7 +1910,7 @@ function emailFlowForDealer(dealer){
   }
 
   const filename = buildDealerFilename(dealer);
-  exportXlsx(rowsForDealer, filename);
+  exportXlsx(rowsForDealer, filename, opzioniDealer(dealer, rowsForDealer).rows);
   setTimeout(() => openMailtoMinimal(dealer, to, rowsForDealer), 350);
 }
 
@@ -1835,7 +1929,7 @@ function emailFlowForSelectedDealer(){
   }
 
   const filename = buildDealerFilename(dealer);
-  exportXlsx(rowsForDealer, filename);
+  exportXlsx(rowsForDealer, filename, opzioniDealer(dealer, rowsForDealer).rows);
   setTimeout(() => openMailtoMinimal(dealer, to, rowsForDealer), 350);
 }
 
@@ -1874,7 +1968,7 @@ async function bulkDownloadAllDealersForAm(){
     if (!rowsForDealer.length) continue;
 
     const filename = buildDealerFilename(dealer);
-    exportXlsx(rowsForDealer, filename);
+    exportXlsx(rowsForDealer, filename, opzioniDealer(dealer, rowsForDealer).rows);
     created++;
 
     await new Promise(res => setTimeout(res, 260));
@@ -2216,8 +2310,9 @@ function computeBulkPreviewItems(){
       const rs = byDealer.get(dealer);
       const okCount = countByStatus(rs, "OK");
       const okTotal = sumByStatus(rs, "OK");
-      const opzCount = countByStatus(rs, "OPZIONI");
-      const opzTotal = sumByStatus(rs, "OPZIONI");
+      const opz = opzioniDealer(dealer, rs);
+      const opzCount = opz.count;
+      const opzTotal = opz.total;
       const email = String(dealerEmailMap[dealer] || "").trim();
 
       const rowsOut = rs.map(r => {
@@ -2232,6 +2327,7 @@ function computeBulkPreviewItems(){
         dealer, email,
         okCount, okTotal, opzCount, opzTotal,
         rows: rowsOut,
+        opzRows: opz.rows,
         emailValid: isValidEmail(email)
       });
     });
@@ -2389,7 +2485,8 @@ async function sendOneItem(item, monthLabelNow){
       okTotal: item.okTotal,
       opzCount: item.opzCount,
       opzTotal: item.opzTotal,
-      rows: item.rows
+      rows: item.rows,
+      opzRows: item.opzRows || []
     }]
   };
   const r = await fetch(`${SERVER_URL}/api/send-bulk`, {
@@ -2529,12 +2626,146 @@ function setEnabled(enabled){
   [edAmFilter, edSearch, edOnlyMissing, edReload].forEach(x => x.disabled = !enabled);
 }
 
-function findDbAceaSheetName(wb){
-  const target = "DBACEA";
+/* ---- Riconoscimento foglio CONTRATTI ----
+   Nomi noti: "DB CONTRATTI" (2026), "DB Acea" (storico).
+   Se cambiano ancora nome, si cerca il foglio che ha davvero
+   le colonne DEALER + STATO, così non si legge una pivot. */
+function sheetHeaderKeys(wb, name){
+  try{
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], { header:1, range:0 });
+    return (rows[0] || []).map(normHeaderKey).filter(Boolean);
+  }catch(e){ return []; }
+}
+
+function findContrattiSheetName(wb){
+  const preferiti = ["DBCONTRATTI", "DBACEA"];
+  for (const p of preferiti){
+    for (const n of wb.SheetNames){
+      if (normSheetName(n) === p) return n;
+    }
+  }
   for (const n of wb.SheetNames){
-    if (normSheetName(n) === target) return n;
+    const k = sheetHeaderKeys(wb, n);
+    if (k.includes("DEALER") && k.includes("STATO")) return n;
   }
   return wb.SheetNames[0];
+}
+
+/* ---- Riconoscimento foglio OPZIONI ----
+   Dal 2026 le opzioni stanno in "DB OPZIONI ACEA", non più come
+   STATO=OPZIONE dentro il DB contratti. Va escluso il foglio pivot
+   "OPZIONI ACEA" (solo 2 colonne). */
+function findOpzioniSheetName(wb, contrattiName){
+  for (const n of wb.SheetNames){
+    if (n === contrattiName) continue;
+    const nn = normSheetName(n);
+    if (nn.startsWith("DB") && nn.includes("OPZION")) return n;
+  }
+  for (const n of wb.SheetNames){
+    if (n === contrattiName) continue;
+    const k = sheetHeaderKeys(wb, n);
+    /* mai confondere un DB contratti (vecchi file: ha DEALER+STATO
+       e pure COMPENSO/Sotto Agenzia) con il foglio opzioni */
+    if (k.includes("DEALER") && k.includes("STATO")) continue;
+    if (k.includes("COMPENSO") && k.includes("NUMERO CASO")) return n;
+  }
+  return "";
+}
+
+/* Costruisce la mappa dealer -> opzioni leggendo il foglio dedicato.
+   Il legame col negozio è la colonna "Sotto Agenzia" (verificato:
+   stessa aggregazione della pivot ufficiale del file). */
+function buildOpzioniIndex(wb){
+  opzByDealer = new Map();
+  opzSheetName = "";
+  opzOrfane = { count:0, total:0, nomi:new Set() };
+
+  const name = findOpzioniSheetName(wb, contrattiSheetName);
+  if (!name) return;
+  opzSheetName = name;
+
+  const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], { defval:"" });
+  if (!rows.length) return;
+
+  const keys = Object.keys(rows[0] || {});
+  const findKey = (...cands) => {
+    for (const c of cands){
+      const nc = normHeaderKey(c);
+      const hit = keys.find(k => normHeaderKey(k) === nc);
+      if (hit) return hit;
+    }
+    return "";
+  };
+  const kSotto = findKey("Sotto Agenzia", "SottoAgenzia");
+  const kComp  = findKey("COMPENSO", "Compenso");
+  const kOgg   = findKey("Oggetto");
+  const kAcc   = findKey("Nome account", "Nome Account");
+  const kData  = findKey("Data chiusura", "Data apertura");
+  const kCaso  = findKey("Numero caso");
+  if (!kSotto || !kComp) return;
+
+  /* Sotto Agenzia -> DEALER: match esatto, poi mappatura univoca
+     ricavata dal DB contratti (es. "METRON SRL" -> "METRON S.R.L."). */
+  const dealerSet = new Set();
+  const sa2dealer = new Map();
+  rawRows.forEach(r => {
+    const d = getStr(r, "DEALER");
+    const sa = getStr(r, "Sotto Agenzia");
+    if (d) dealerSet.add(d);
+    if (d && sa){
+      if (!sa2dealer.has(sa)) sa2dealer.set(sa, new Set());
+      sa2dealer.get(sa).add(d);
+    }
+  });
+
+  const risolvi = (sa) => {
+    if (dealerSet.has(sa)) return sa;
+    const cand = sa2dealer.get(sa);
+    if (cand && cand.size === 1) return Array.from(cand)[0];
+    return "";
+  };
+
+  rows.forEach(r => {
+    const sa = String(r[kSotto] ?? "").trim();
+    const imp = toNumber(r[kComp]);
+    if (!sa && !imp) return;
+
+    const dealer = sa ? risolvi(sa) : "";
+    if (!dealer){
+      if (sa || imp){
+        opzOrfane.count += 1;
+        opzOrfane.total += imp;
+        if (sa) opzOrfane.nomi.add(sa);
+      }
+      return;
+    }
+
+    if (!opzByDealer.has(dealer)) opzByDealer.set(dealer, { count:0, total:0, rows:[] });
+    const o = opzByDealer.get(dealer);
+    o.count += 1;
+    o.total += imp;
+    o.rows.push({
+      caso: kCaso ? r[kCaso] : "",
+      cliente: kAcc ? r[kAcc] : "",
+      oggetto: kOgg ? r[kOgg] : "",
+      data: kData ? fmtDate(r[kData]) : "",
+      sottoAgenzia: sa,
+      compenso: imp
+    });
+  });
+}
+
+/* Opzioni di un negozio: nuovo formato (foglio separato) +
+   vecchio formato (righe con STATO = OPZIONI), mai compresenti. */
+function opzioniDealer(dealer, rows){
+  const ext = opzByDealer.get(dealer) || { count:0, total:0, rows:[] };
+  const legacyCount = rows ? countByStatus(rows, "OPZIONI") : 0;
+  const legacyTotal = rows ? sumByStatus(rows, "OPZIONI") : 0;
+  return {
+    count: ext.count + legacyCount,
+    total: ext.total + legacyTotal,
+    rows: ext.rows
+  };
 }
 
 async function loadXlsxFile(file){
@@ -2549,12 +2780,15 @@ async function loadXlsxFile(file){
 
   const buf = await file.arrayBuffer();
   const wb = XLSX.read(buf, { type:"array", cellDates:true });
-  const sheetName = findDbAceaSheetName(wb);
+  const sheetName = findContrattiSheetName(wb);
   const ws = wb.Sheets[sheetName];
 
   rawRows = XLSX.utils.sheet_to_json(ws, { defval:"" });
+  contrattiSheetName = sheetName;
 
   buildResolvedHeaders();
+  buildOpzioniIndex(wb);
+  refreshSourceInfo();
   buildAmDealerIndex();
   populateAmFilter();
   refreshDealerDatalist();
@@ -2613,6 +2847,11 @@ btnReset.addEventListener("click", () => {
   lastFilename = "";
   monthLabel = "";
   amToDealers = new Map();
+  contrattiSheetName = "";
+  opzSheetName = "";
+  opzByDealer = new Map();
+  opzOrfane = { count:0, total:0, nomi:new Set() };
+  if (sourceInfo) sourceInfo.style.display = "none";
   selectedDealers.clear();
   resolvedHeaders = {};
 

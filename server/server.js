@@ -8,8 +8,10 @@ const PORT = Number(process.env.PORT || 5170);
 const SEND_DELAY_MS = Number(process.env.SEND_DELAY_MS || 600);
 const BRAND_LABEL = "Acea";
 
+/* Fallback: le colonne vere arrivano dal pannello con le righe
+   (vedi colonneDa()), così client e server non divergono mai. */
 const DESIRED_COLUMNS = [
-  "DEALER","AM","STATO","Nome opportunità","Stato PDC","Causale annullamento",
+  "DEALER","AM","STATO","Runner","Nome opportunità","Stato PDC","Causale annullamento",
   "Data creazione","Data firma","Tipo cliente","Partita IVA","Codice Fiscale",
   "Ragione Sociale","Nome Cliente","Cognome Cliente","Billing Profile: Modalità di Pagamento",
   "Categoria d'uso","Service Point Code","Prestazione","Indirizzo","Nome Prodotto",
@@ -58,11 +60,20 @@ function buildDealerFilename(dealer, monthLabel){
 }
 
 /* ---------- XLSX generation ---------- */
-function buildXlsxBuffer(rows){
-  const aoa = [DESIRED_COLUMNS.slice()];
+/* Le colonne (e il loro ordine) sono quelle che il pannello ha
+   messo nelle righe: se il pannello ne aggiunge una, l'allegato la
+   prende senza toccare il server. */
+function colonneDa(rows){
+  const k = rows && rows[0] ? Object.keys(rows[0]) : [];
+  return k.length ? k : DESIRED_COLUMNS.slice();
+}
+
+function buildXlsxBuffer(rows, opzRows){
+  const COLS = colonneDa(rows);
+  const aoa = [COLS.slice()];
 
   rows.forEach(r => {
-    const line = DESIRED_COLUMNS.map(col => {
+    const line = COLS.map(col => {
       const v = r?.[col];
       if (col === "Compenso") return Number.isFinite(Number(v)) ? Number(v) : 0;
       return (v === undefined || v === null) ? "" : v;
@@ -71,17 +82,17 @@ function buildXlsxBuffer(rows){
   });
 
   const total = rows.reduce((acc, r) => acc + (Number.isFinite(Number(r.Compenso)) ? Number(r.Compenso) : 0), 0);
-  const totalRow = Array(DESIRED_COLUMNS.length).fill("");
+  const totalRow = Array(COLS.length).fill("");
   totalRow[0] = "TOTALE COMPENSI";
-  totalRow[DESIRED_COLUMNS.indexOf("Compenso")] = total;
+  totalRow[COLS.indexOf("Compenso")] = total;
   aoa.push(totalRow);
 
   const ws = XLSX.utils.aoa_to_sheet(aoa);
 
-  const compIdx = DESIRED_COLUMNS.indexOf("Compenso");
+  const compIdx = COLS.indexOf("Compenso");
   const lastRow = aoa.length;
 
-  ws["!cols"] = DESIRED_COLUMNS.map((_,i)=> ({ wch: (i === compIdx ? 21 : 13) }));
+  ws["!cols"] = COLS.map((_,i)=> ({ wch: (i === compIdx ? 21 : 13) }));
 
   const headerGrey = {
     fill: { patternType:"solid", fgColor:{ rgb:"BFBFBF" } },
@@ -115,13 +126,13 @@ function buildXlsxBuffer(rows){
     }
   };
 
-  for (let c=0; c<DESIRED_COLUMNS.length; c++){
+  for (let c=0; c<COLS.length; c++){
     const addr = XLSX.utils.encode_cell({ r:0, c });
     if (!ws[addr]) continue;
     ws[addr].s = (c === compIdx) ? compYellow : headerGrey;
   }
   for (let r=2; r<=lastRow; r++){
-    for (let c=0; c<DESIRED_COLUMNS.length; c++){
+    for (let c=0; c<COLS.length; c++){
       const addr = XLSX.utils.encode_cell({ r:r-1, c });
       const cell = ws[addr];
       if (!cell) continue;
@@ -137,6 +148,34 @@ function buildXlsxBuffer(rows){
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Rendicontazione");
+
+  /* foglio con il dettaglio delle opzioni del negozio, se presenti */
+  if (Array.isArray(opzRows) && opzRows.length){
+    const head = ["NUMERO CASO","CLIENTE","OGGETTO","DATA","SOTTO AGENZIA","COMPENSO"];
+    const oaoa = [head];
+    opzRows.forEach(o => oaoa.push([
+      o?.caso ?? "", o?.cliente ?? "", o?.oggetto ?? "", o?.data ?? "", o?.sottoAgenzia ?? "",
+      Number(o?.compenso) || 0
+    ]));
+    const tot = opzRows.reduce((a,o) => a + (Number(o?.compenso) || 0), 0);
+    const totRow = Array(head.length).fill("");
+    totRow[0] = "TOTALE OPZIONI";
+    totRow[head.length-1] = tot;
+    oaoa.push(totRow);
+
+    const ws2 = XLSX.utils.aoa_to_sheet(oaoa);
+    ws2["!cols"] = [{wch:14},{wch:28},{wch:34},{wch:12},{wch:30},{wch:14}];
+    for (let c=0; c<head.length; c++){
+      const a = XLSX.utils.encode_cell({ r:0, c });
+      if (ws2[a]) ws2[a].s = headerGrey;
+    }
+    for (let r=1; r<oaoa.length; r++){
+      const a = XLSX.utils.encode_cell({ r, c:head.length-1 });
+      if (ws2[a]){ ws2[a].z = '#,##0.00'; ws2[a].s = compYellow; }
+    }
+    XLSX.utils.book_append_sheet(wb, ws2, "Opzioni");
+  }
+
   return XLSX.write(wb, { type:"buffer", bookType:"xlsx" });
 }
 
@@ -257,7 +296,7 @@ app.post("/api/send-bulk", async (req, res) => {
     }
 
     try{
-      const buf = buildXlsxBuffer(rows);
+      const buf = buildXlsxBuffer(rows, Array.isArray(it?.opzRows) ? it.opzRows : []);
       const filename = buildDealerFilename(dealer, monthLabel);
       await transporter.sendMail({
         from: fromHeader(),
