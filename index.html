@@ -1307,8 +1307,14 @@ function getCompenso(row){
   if (ZERO_COMPENSO_STATUSES.includes(st)) return 0;
   const raw = getCell(row, "Compenso");
   const n = toNumber(raw);
-  if (n === -20) return 0;
-  return n;
+  return nonNegativo(n);
+}
+
+/* Il compenso non può mai essere negativo: -20 (e qualsiasi altro
+   valore sotto zero) conta come 0. */
+function nonNegativo(n){
+  const x = Number(n);
+  return (Number.isFinite(x) && x > 0) ? x : 0;
 }
 
 function computeTotal(rows){
@@ -2743,7 +2749,7 @@ function buildOpzioniIndex(wb){
 
   rows.forEach(r => {
     const sa = String(r[kSotto] ?? "").trim();
-    const imp = toNumber(r[kComp]);
+    const imp = nonNegativo(toNumber(r[kComp]));
     if (!sa && !imp) return;
 
     let dealer = sa ? risolvi(sa) : "";

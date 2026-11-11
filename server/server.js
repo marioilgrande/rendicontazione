@@ -75,13 +75,13 @@ function buildXlsxBuffer(rows, opzRows){
   rows.forEach(r => {
     const line = COLS.map(col => {
       const v = r?.[col];
-      if (col === "Compenso") return Number.isFinite(Number(v)) ? Number(v) : 0;
+      if (col === "Compenso") return Math.max(0, Number.isFinite(Number(v)) ? Number(v) : 0);
       return (v === undefined || v === null) ? "" : v;
     });
     aoa.push(line);
   });
 
-  const total = rows.reduce((acc, r) => acc + (Number.isFinite(Number(r.Compenso)) ? Number(r.Compenso) : 0), 0);
+  const total = rows.reduce((acc, r) => acc + Math.max(0, Number.isFinite(Number(r.Compenso)) ? Number(r.Compenso) : 0), 0);
   const totalRow = Array(COLS.length).fill("");
   totalRow[0] = "TOTALE COMPENSI";
   totalRow[COLS.indexOf("Compenso")] = total;
@@ -155,9 +155,9 @@ function buildXlsxBuffer(rows, opzRows){
     const oaoa = [head];
     opzRows.forEach(o => oaoa.push([
       o?.caso ?? "", o?.cliente ?? "", o?.oggetto ?? "", o?.data ?? "", o?.sottoAgenzia ?? "",
-      Number(o?.compenso) || 0
+      Math.max(0, Number(o?.compenso) || 0)
     ]));
-    const tot = opzRows.reduce((a,o) => a + (Number(o?.compenso) || 0), 0);
+    const tot = opzRows.reduce((a,o) => a + Math.max(0, Number(o?.compenso) || 0), 0);
     const totRow = Array(head.length).fill("");
     totRow[0] = "TOTALE OPZIONI";
     totRow[head.length-1] = tot;
