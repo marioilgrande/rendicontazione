@@ -1198,6 +1198,19 @@ function refreshSourceInfo(){
            + ` · compenso da <strong>${escapeHtml(String(colComp).trim())}</strong>`
            + (compOk ? "" : ` <em>(nel file non c'è la colonna COMPENSO CORRETTO)</em>`);
 
+  if (runnerSplitInfo.length){
+    const gruppi = {};
+    runnerSplitInfo.forEach(x => { (gruppi[x.base] = gruppi[x.base] || []).push(x); });
+    Object.entries(gruppi).forEach(([base, arr]) => {
+      const al = (RUNNER_SPLIT[base] || {}).alias || {};
+      const alTxt = Object.entries(al).map(([a,b]) => `${escapeHtml(a)} → ${escapeHtml(b)}`).join(", ");
+      html += `<br><span class="status-tag il">⇄</span> <strong>${escapeHtml(base)}</strong> diviso per runner in `
+            + `<strong>${arr.length}</strong> righe: `
+            + arr.map(x => `${escapeHtml(x.runner)} (${x.ok} OK)`).join(", ")
+            + (alTxt ? ` · riassegnati: ${alTxt}` : "");
+    });
+  }
+
   if (opzSheetName){
     html += `<br><span class="status-tag opz">✓</span> Opzioni dal foglio <strong>${escapeHtml(opzSheetName)}</strong>: `
           + `<strong>${nOpz}</strong> su <strong>${opzByDealer.size}</strong> negozi, tot ${fmtEUR(totOpz)}`;
@@ -2702,15 +2715,18 @@ function buildOpzioniIndex(wb){
   const kAcc   = findKey("Nome account", "Nome Account");
   const kData  = findKey("Data chiusura", "Data apertura");
   const kCaso  = findKey("Numero caso");
+  const kTit   = findKey("Titolare caso");
   if (!kSotto || !kComp) return;
 
   /* Sotto Agenzia -> DEALER: match esatto, poi mappatura univoca
      ricavata dal DB contratti (es. "METRON SRL" -> "METRON S.R.L."). */
   const dealerSet = new Set();
   const sa2dealer = new Map();
+  const dealerEffettivi = new Set();
   rawRows.forEach(r => {
-    const d = getStr(r, "DEALER");
+    const d = dealerOriginale(r);
     const sa = getStr(r, "Sotto Agenzia");
+    dealerEffettivi.add(getStr(r, "DEALER"));
     if (d) dealerSet.add(d);
     if (d && sa){
       if (!sa2dealer.has(sa)) sa2dealer.set(sa, new Set());
@@ -2730,7 +2746,20 @@ function buildOpzioniIndex(wb){
     const imp = toNumber(r[kComp]);
     if (!sa && !imp) return;
 
-    const dealer = sa ? risolvi(sa) : "";
+    let dealer = sa ? risolvi(sa) : "";
+    const base = splitKeyFor(dealer);
+    if (base){
+      const tit = kTit ? String(r[kTit] ?? "").trim() : "";
+      const virt = runnerSplitName(base, tit).nome;
+      if (tit && dealerEffettivi.has(virt)){
+        dealer = virt;
+      } else {
+        opzOrfane.count += 1;
+        opzOrfane.total += imp;
+        opzOrfane.nomi.add(`${base} (titolare: ${tit || "vuoto"})`);
+        return;
+      }
+    }
     if (!dealer){
       if (sa || imp){
         opzOrfane.count += 1;
@@ -2753,6 +2782,73 @@ function buildOpzioniIndex(wb){
       compenso: imp
     });
   });
+}
+
+/* =========================
+   NEGOZI FATTURATI PER RUNNER
+   Per questi negozi ogni runner ha la sua fatturazione: diventa una
+   riga a sé ("NEGOZIO - RUNNER") in dashboard, rubrica email, export
+   e invio massivo. "alias" riassegna un runner a un altro nome.
+   ========================= */
+const RUNNER_SPLIT = {
+  "NAPPA IVAN": { alias: { "MARIO ISERNIA": "SIMONE VALIDO" } }
+};
+let runnerSplitInfo = []; // [{ base, nome, runner, righe, ok, riassegnate }]
+
+function normName(s){
+  return String(s ?? "").trim().toUpperCase().replace(/\s+/g, " ");
+}
+
+function splitKeyFor(dealer){
+  const n = normName(dealer);
+  return n ? (Object.keys(RUNNER_SPLIT).find(k => normName(k) === n) || "") : "";
+}
+
+function runnerSplitName(base, runner){
+  const al = (RUNNER_SPLIT[base] || {}).alias || {};
+  const hit = Object.keys(al).find(k => normName(k) === normName(runner));
+  const finale = hit ? al[hit] : (String(runner ?? "").trim() || "SENZA RUNNER");
+  return { finale, nome: `${base} - ${finale}` };
+}
+
+function setHidden(obj, key, val){
+  Object.defineProperty(obj, key, { value: val, enumerable: false, writable: true, configurable: true });
+}
+
+/* Riscrive DEALER (e Runner, se riassegnato) sulle righe dei negozi
+   da dividere. Il nome originale resta in __DEALER_ORIG (nascosto),
+   serve per agganciare le opzioni tramite Sotto Agenzia. */
+function applyRunnerSplit(){
+  runnerSplitInfo = [];
+  const kD = resolvedHeaders["DEALER"] || "DEALER";
+  const kR = resolvedHeaders["Runner"] || "Runner";
+  const info = new Map();
+
+  rawRows.forEach(r => {
+    const orig = String(r[kD] ?? "").trim();
+    setHidden(r, "__DEALER_ORIG", orig);
+    const base = splitKeyFor(orig);
+    if (!base) return;
+
+    const from = String(r[kR] ?? "").trim();
+    const { finale, nome } = runnerSplitName(base, from);
+    const riassegnata = !!from && normName(from) !== normName(finale);
+    if (riassegnata) setHidden(r, "__RUNNER_ORIG", from);
+    r[kR] = finale;
+    r[kD] = nome;
+
+    if (!info.has(nome)) info.set(nome, { base, nome, runner: finale, righe:0, ok:0, riassegnate:0 });
+    const x = info.get(nome);
+    x.righe += 1;
+    if (normStatus(r[resolvedHeaders["STATO"] || "STATO"]) === "OK") x.ok += 1;
+    if (riassegnata) x.riassegnate += 1;
+  });
+
+  runnerSplitInfo = Array.from(info.values()).sort((a,b) => b.ok - a.ok);
+}
+
+function dealerOriginale(r){
+  return r.__DEALER_ORIG !== undefined ? r.__DEALER_ORIG : getStr(r, "DEALER");
 }
 
 /* Opzioni di un negozio: nuovo formato (foglio separato) +
@@ -2787,6 +2883,7 @@ async function loadXlsxFile(file){
   contrattiSheetName = sheetName;
 
   buildResolvedHeaders();
+  applyRunnerSplit();
   buildOpzioniIndex(wb);
   refreshSourceInfo();
   buildAmDealerIndex();
@@ -2852,6 +2949,7 @@ btnReset.addEventListener("click", () => {
   opzByDealer = new Map();
   opzOrfane = { count:0, total:0, nomi:new Set() };
   if (sourceInfo) sourceInfo.style.display = "none";
+  runnerSplitInfo = [];
   selectedDealers.clear();
   resolvedHeaders = {};
 
