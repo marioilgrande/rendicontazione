@@ -1210,6 +1210,11 @@ function refreshSourceInfo(){
             + (alTxt ? ` · riassegnati: ${alTxt}` : "");
     });
   }
+  runnerMoveInfo.forEach(m => {
+    html += `<br><span class="status-tag il">→</span> Correzione file: ${m.righe} ${m.righe === 1 ? "pratica" : "pratiche"} di `
+          + `<strong>${escapeHtml(m.runner)}</strong> (${m.ok} OK) ${m.righe === 1 ? "spostata" : "spostate"} da ${escapeHtml(m.base)} `
+          + `a <strong>${escapeHtml(m.verso)}</strong>`;
+  });
 
   if (opzSheetName){
     html += `<br><span class="status-tag opz">✓</span> Opzioni dal foglio <strong>${escapeHtml(opzSheetName)}</strong>: `
@@ -2795,11 +2800,18 @@ function buildOpzioniIndex(wb){
    Per questi negozi ogni runner ha la sua fatturazione: diventa una
    riga a sé ("NEGOZIO - RUNNER") in dashboard, rubrica email, export
    e invio massivo. "alias" riassegna un runner a un altro nome.
+   "sposta" corregge gli errori del file: le pratiche di quel runner
+   vanno conteggiate su un altro negozio (non sul negozio diviso).
    ========================= */
 const RUNNER_SPLIT = {
-  "NAPPA IVAN": { alias: { "MARIO ISERNIA": "SIMONE VALIDO" } }
+  "NAPPA IVAN": {
+    alias:  { "MARIO ISERNIA": "SIMONE VALIDO" },
+    sposta: { "PAUL SILVU MICU": "MT TECHNOLOGY SRL",
+              "CLAUDIO CARAMORI": "CARAMORI S.R.L." }
+  }
 };
 let runnerSplitInfo = []; // [{ base, nome, runner, righe, ok, riassegnate }]
+let runnerMoveInfo = [];  // [{ base, runner, verso, righe, ok }]
 
 function normName(s){
   return String(s ?? "").trim().toUpperCase().replace(/\s+/g, " ");
@@ -2826,9 +2838,21 @@ function setHidden(obj, key, val){
    serve per agganciare le opzioni tramite Sotto Agenzia. */
 function applyRunnerSplit(){
   runnerSplitInfo = [];
+  runnerMoveInfo = [];
   const kD = resolvedHeaders["DEALER"] || "DEALER";
   const kR = resolvedHeaders["Runner"] || "Runner";
+  const kA = resolvedHeaders["AM"] || "AM";
+  const kS = resolvedHeaders["STATO"] || "STATO";
   const info = new Map();
+  const mosse = new Map();
+
+  /* AM di ogni negozio, per allineare le righe spostate */
+  const amDi = new Map();
+  rawRows.forEach(r => {
+    const d = normName(r[kD]);
+    const a = String(r[kA] ?? "").trim();
+    if (d && a && !amDi.has(d)) amDi.set(d, a);
+  });
 
   rawRows.forEach(r => {
     const orig = String(r[kD] ?? "").trim();
@@ -2837,6 +2861,23 @@ function applyRunnerSplit(){
     if (!base) return;
 
     const from = String(r[kR] ?? "").trim();
+
+    /* errore del file: pratica da conteggiare su un altro negozio */
+    const sp = (RUNNER_SPLIT[base] || {}).sposta || {};
+    const spKey = Object.keys(sp).find(k => normName(k) === normName(from));
+    if (spKey){
+      const verso = sp[spKey];
+      r[kD] = verso;
+      const am = amDi.get(normName(verso));
+      if (am) r[kA] = am;
+      const key = base + "|" + spKey;
+      if (!mosse.has(key)) mosse.set(key, { base, runner: spKey, verso, righe:0, ok:0 });
+      const m = mosse.get(key);
+      m.righe += 1;
+      if (normStatus(r[kS]) === "OK") m.ok += 1;
+      return;
+    }
+
     const { finale, nome } = runnerSplitName(base, from);
     const riassegnata = !!from && normName(from) !== normName(finale);
     if (riassegnata) setHidden(r, "__RUNNER_ORIG", from);
@@ -2851,6 +2892,7 @@ function applyRunnerSplit(){
   });
 
   runnerSplitInfo = Array.from(info.values()).sort((a,b) => b.ok - a.ok);
+  runnerMoveInfo = Array.from(mosse.values());
 }
 
 function dealerOriginale(r){
@@ -2956,6 +2998,7 @@ btnReset.addEventListener("click", () => {
   opzOrfane = { count:0, total:0, nomi:new Set() };
   if (sourceInfo) sourceInfo.style.display = "none";
   runnerSplitInfo = [];
+  runnerMoveInfo = [];
   selectedDealers.clear();
   resolvedHeaders = {};
 
