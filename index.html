@@ -878,6 +878,7 @@ const COLUMN_ALIASES = {
   "AM": ["AM"],
   "STATO": ["STATO INSERITO", "STATO", "STATO PAGAMENTO"],
   "Runner": ["Runner", "RUNNER", "Runner Name", "Nome Runner"],
+  "Listino": ["listino", "LISTINO", "Listino"],
   "Nome opportunità": ["Nome opportunità"],
   "Stato PDC": ["Stato PDC"],
   "Causale annullamento": ["Causale annullamento", "Causale Annullamento2"],
@@ -1213,7 +1214,11 @@ function refreshSourceInfo(){
   runnerMoveInfo.forEach(m => {
     html += `<br><span class="status-tag il">→</span> Correzione file: ${m.righe} ${m.righe === 1 ? "pratica" : "pratiche"} di `
           + `<strong>${escapeHtml(m.runner)}</strong> (${m.ok} OK) ${m.righe === 1 ? "spostata" : "spostate"} da ${escapeHtml(m.base)} `
-          + `a <strong>${escapeHtml(m.verso)}</strong>`;
+          + `a <strong>${escapeHtml(m.verso)}</strong>`
+          + (m.ricalcoli.length
+              ? ` · compenso ricalcolato sul listino ${escapeHtml(m.verso)} (${m.ricalcoli[0].listino}): `
+                + m.ricalcoli.map(x => `${fmtEUR(x.da)} → ${fmtEUR(x.a)}`).join(", ")
+              : "");
   });
 
   if (opzSheetName){
@@ -2802,6 +2807,9 @@ function buildOpzioniIndex(wb){
    e invio massivo. "alias" riassegna un runner a un altro nome.
    "sposta" corregge gli errori del file: le pratiche di quel runner
    vanno conteggiate su un altro negozio (non sul negozio diviso).
+   Il compenso delle pratiche spostate si ricalcola sul listino del
+   negozio di destinazione, mantenendo l'eventuale -20 (compenso =
+   listino destinazione - (listino origine - compenso origine)).
    ========================= */
 const RUNNER_SPLIT = {
   "NAPPA IVAN": {
@@ -2811,7 +2819,7 @@ const RUNNER_SPLIT = {
   }
 };
 let runnerSplitInfo = []; // [{ base, nome, runner, righe, ok, riassegnate }]
-let runnerMoveInfo = [];  // [{ base, runner, verso, righe, ok }]
+let runnerMoveInfo = [];  // [{ base, runner, verso, righe, ok, ricalcoli:[] }]
 
 function normName(s){
   return String(s ?? "").trim().toUpperCase().replace(/\s+/g, " ");
@@ -2846,13 +2854,31 @@ function applyRunnerSplit(){
   const info = new Map();
   const mosse = new Map();
 
-  /* AM di ogni negozio, per allineare le righe spostate */
+  /* AM e listino di ogni negozio, per allineare le righe spostate */
+  const kL = resolvedHeaders["Listino"] || "";
+  const kC = resolvedHeaders["Compenso"] || "";
+  const kT = resolvedHeaders["Tipo cliente"] || "";
   const amDi = new Map();
+  const listini = new Map(); // "NEGOZIO" e "NEGOZIO|TIPO" -> Map(listino -> conteggio)
+  const conta = (key, v) => {
+    if (!listini.has(key)) listini.set(key, new Map());
+    const m = listini.get(key); m.set(v, (m.get(v) || 0) + 1);
+  };
   rawRows.forEach(r => {
     const d = normName(r[kD]);
     const a = String(r[kA] ?? "").trim();
     if (d && a && !amDi.has(d)) amDi.set(d, a);
+    const l = kL ? toNumber(r[kL]) : 0;
+    if (d && l > 0){
+      conta(d, l);
+      if (kT) conta(d + "|" + normName(r[kT]), l);
+    }
   });
+  const listinoDi = (dealer, tipo) => {
+    const m = listini.get(normName(dealer) + "|" + normName(tipo)) || listini.get(normName(dealer));
+    if (!m) return 0;
+    return Array.from(m.entries()).sort((a,b) => b[1] - a[1])[0][0];
+  };
 
   rawRows.forEach(r => {
     const orig = String(r[kD] ?? "").trim();
@@ -2871,10 +2897,24 @@ function applyRunnerSplit(){
       const am = amDi.get(normName(verso));
       if (am) r[kA] = am;
       const key = base + "|" + spKey;
-      if (!mosse.has(key)) mosse.set(key, { base, runner: spKey, verso, righe:0, ok:0 });
+      if (!mosse.has(key)) mosse.set(key, { base, runner: spKey, verso, righe:0, ok:0, ricalcoli:[] });
       const m = mosse.get(key);
       m.righe += 1;
       if (normStatus(r[kS]) === "OK") m.ok += 1;
+
+      /* ricalcolo sul listino del negozio di destinazione */
+      if (kL && kC){
+        const lOrig = toNumber(r[kL]);
+        const cOrig = toNumber(r[kC]);
+        const lDest = listinoDi(verso, kT ? r[kT] : "");
+        if (lOrig > 0 && lDest > 0 && lOrig !== lDest && cOrig >= 0){
+          const nuovo = Math.max(0, lDest - (lOrig - cOrig));
+          setHidden(r, "__COMPENSO_ORIG", r[kC]);
+          r[kC] = nuovo;
+          r[kL] = lDest;
+          m.ricalcoli.push({ da: cOrig, a: nuovo, listino: lDest });
+        }
+      }
       return;
     }
 
