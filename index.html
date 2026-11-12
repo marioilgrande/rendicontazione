@@ -777,6 +777,10 @@
               <div class="label">Senza email</div>
               <div class="value" id="bpNoMail" style="font-size:14px; color:var(--ko);">0</div>
             </div>
+            <div class="stat-card" style="padding:6px 10px; min-width:auto;">
+              <div class="label">Senza compensi</div>
+              <div class="value" id="bpNoComp" style="font-size:14px; color:var(--ko);">0</div>
+            </div>
             <div class="stat-card opz" style="padding:6px 10px; min-width:auto;">
               <div class="label">Tot OK</div>
               <div class="value" id="bpOk" style="font-size:14px;">0</div>
@@ -787,9 +791,11 @@
             </div>
           </div>
 
+          <div id="bpNoCompList" class="mini-note mb-2 p-2" style="display:none; border:1px solid #f3d7d7; background:var(--ko-bg); border-radius:10px; color:var(--ko);"></div>
+
           <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
             <div class="mini-note flex-grow-1">
-              Spunta i negozi a cui vuoi inviare. I negozi senza email sono <strong>esclusi automaticamente</strong>.
+              Spunta i negozi a cui vuoi inviare. I negozi senza email o senza compensi sono <strong>esclusi automaticamente</strong>.
             </div>
             <button id="bpSelectAll" class="btn btn-sm btn-outline-secondary" type="button">Seleziona tutti</button>
             <button id="bpSelectNone" class="btn btn-sm btn-outline-secondary" type="button">Deseleziona tutti</button>
@@ -1006,6 +1012,8 @@ const bpBody = el("bpBody");
 const bpTot = el("bpTot");
 const bpReady = el("bpReady");
 const bpNoMail = el("bpNoMail");
+const bpNoComp = el("bpNoComp");
+const bpNoCompList = el("bpNoCompList");
 const bpOk = el("bpOk");
 const bpTotal = el("bpTotal");
 const bpMasterCheck = el("bpMasterCheck");
@@ -1855,6 +1863,10 @@ function emailFlowForDealer(dealer){
     alert(`Nessuna riga per ${dealer} con gli stati selezionati.`);
     return;
   }
+  if (!haCompensi(dealer, rowsForDealer)){
+    alert(`${dealer} non ha compensi questo mese.\nNessun file e nessuna mail.`);
+    return;
+  }
 
   const filename = buildDealerFilename(dealer);
   exportXlsx(rowsForDealer, filename, opzioniDealer(dealer, rowsForDealer).rows);
@@ -1874,10 +1886,32 @@ function emailFlowForSelectedDealer(){
     alert("Nessuna riga per il negozio selezionato con i filtri attuali.");
     return;
   }
+  if (!haCompensi(dealer, rowsForDealer)){
+    alert(`${dealer} non ha compensi questo mese.\nNessun file e nessuna mail.`);
+    return;
+  }
 
   const filename = buildDealerFilename(dealer);
   exportXlsx(rowsForDealer, filename, opzioniDealer(dealer, rowsForDealer).rows);
   setTimeout(() => openMailtoMinimal(dealer, to, rowsForDealer), 350);
+}
+
+/* =========================
+   REGOLA: niente file/mail a chi non ha compensi
+   Un negozio riceve qualcosa solo se ha prodotto almeno un servizio
+   pagato: pratiche OK o opzioni con importo > 0.
+   ========================= */
+function compensiDealer(dealer, rows){
+  return sumByStatus(rows, "OK") + opzioniDealer(dealer, rows).total;
+}
+
+function haCompensi(dealer, rows){
+  return compensiDealer(dealer, rows) > 0;
+}
+
+function avvisoSenzaCompensi(nomi){
+  if (!nomi.length) return "";
+  return `Negozi senza compensi (nessun file e nessuna mail): ${nomi.length}\n- ` + nomi.join("\n- ");
 }
 
 /* =========================
@@ -1908,11 +1942,13 @@ async function bulkDownloadAllDealersForAm(){
   });
 
   let created = 0;
+  const senza = [];
 
   for (let i=0; i<allowed.length; i++){
     const dealer = allowed[i];
     const rowsForDealer = baseRows.filter(r => getStr(r,"DEALER") === dealer);
     if (!rowsForDealer.length) continue;
+    if (!haCompensi(dealer, rowsForDealer)){ senza.push(dealer); continue; }
 
     const filename = buildDealerFilename(dealer);
     exportXlsx(rowsForDealer, filename, opzioniDealer(dealer, rowsForDealer).rows);
@@ -1921,10 +1957,10 @@ async function bulkDownloadAllDealersForAm(){
     await new Promise(res => setTimeout(res, 260));
   }
 
-  alert(created
+  const msg = created
     ? `Creati ${created} file (uno per negozio).`
-    : "Nessun file creato: non ci sono righe per i negozi dell'AM con gli stati selezionati."
-  );
+    : "Nessun file creato: non ci sono negozi con compensi per l'AM con gli stati selezionati.";
+  alert(senza.length ? msg + "\n\n" + avvisoSenzaCompensi(senza) : msg);
 }
 
 /* =========================
@@ -2275,7 +2311,8 @@ function computeBulkPreviewItems(){
         okCount, okTotal, opzCount, opzTotal,
         rows: rowsOut,
         opzRows: opz.rows,
-        emailValid: isValidEmail(email)
+        emailValid: isValidEmail(email),
+        conCompensi: (okTotal + opzTotal) > 0
       });
     });
 
@@ -2293,14 +2330,24 @@ function openBulkModal(items){
   bulkBtnClose.style.display = "none";
   bulkFootHint.textContent = `Mese: ${capFirst(monthLabel || currentMonthIt() || "—")} · Mittente: dal server locale.`;
 
-  const ready = items.filter(x => x.emailValid);
-  const noMail = items.filter(x => !x.emailValid);
+  items.forEach(x => { x.inviabile = x.emailValid && x.conCompensi; });
+  /* i negozi senza compensi in fondo all'elenco */
+  items.sort((a,b) => (b.conCompensi - a.conCompensi) || a.dealer.localeCompare(b.dealer,"it"));
+  const ready = items.filter(x => x.inviabile);
+  const noMail = items.filter(x => x.conCompensi && !x.emailValid);
+  const senza = items.filter(x => !x.conCompensi);
   const totOk = items.reduce((a,x)=>a + x.okCount, 0);
   const totFatt = items.reduce((a,x)=>a + x.okTotal, 0);
 
   bpTot.textContent = String(items.length);
   bpReady.textContent = String(ready.length);
   bpNoMail.textContent = String(noMail.length);
+  bpNoComp.textContent = String(senza.length);
+  bpNoCompList.style.display = senza.length ? "block" : "none";
+  bpNoCompList.innerHTML = senza.length
+    ? `<strong>Senza compensi, non riceveranno né file né mail (${senza.length}):</strong> `
+      + senza.map(x => escapeHtml(x.dealer)).join(", ")
+    : "";
   bpOk.textContent = String(totOk);
   bpTotal.textContent = fmtEUR(totFatt);
 
@@ -2314,18 +2361,19 @@ function openBulkModal(items){
   }
 
   items.forEach((it, idx) => {
-    it._selected = it.emailValid;
+    it._selected = it.inviabile;
 
     const tr = document.createElement("tr");
-    if (!it.emailValid) tr.classList.add("row-warn");
+    if (!it.inviabile) tr.classList.add("row-warn");
+    if (!it.conCompensi) tr.style.opacity = ".6";
     tr.dataset.idx = String(idx);
 
     const tdC = document.createElement("td");
     const chk = document.createElement("input");
     chk.type = "checkbox";
     chk.className = "form-check-input bp-row-check";
-    chk.checked = it.emailValid;
-    chk.disabled = !it.emailValid;
+    chk.checked = it.inviabile;
+    chk.disabled = !it.inviabile;
     chk.dataset.idx = String(idx);
     tdC.appendChild(chk);
     tr.appendChild(tdC);
@@ -2364,9 +2412,11 @@ function openBulkModal(items){
     tr.appendChild(td6);
 
     const td7 = document.createElement("td");
-    td7.innerHTML = it.emailValid
-      ? `<span class="pill-ok">PRONTO</span>`
-      : `<span class="pill-missing">SALTATO</span>`;
+    td7.innerHTML = !it.conCompensi
+      ? `<span class="pill-missing">SENZA COMPENSI</span>`
+      : it.emailValid
+        ? `<span class="pill-ok">PRONTO</span>`
+        : `<span class="pill-missing">SALTATO</span>`;
     tr.appendChild(td7);
 
     bpBody.appendChild(tr);
@@ -2385,7 +2435,7 @@ function openBulkModal(items){
 
 function updateBulkSelectedCount(){
   const items = currentBulkItems || [];
-  const ready = items.filter(x => x.emailValid);
+  const ready = items.filter(x => x.inviabile);
   const selected = ready.filter(x => x._selected).length;
   bpSelected.textContent = String(selected);
   bpSelectedOf.textContent = String(ready.length);
@@ -2398,7 +2448,7 @@ function updateBulkSelectedCount(){
 
 function setAllBulkSelection(value){
   (currentBulkItems || []).forEach((it, idx) => {
-    if (!it.emailValid) return;
+    if (!it.inviabile) return;
     it._selected = !!value;
     const chk = bpBody.querySelector(`.bp-row-check[data-idx="${idx}"]`);
     if (chk) chk.checked = !!value;
@@ -2449,7 +2499,8 @@ async function sendOneItem(item, monthLabelNow){
 }
 
 async function startBulkSend(items){
-  const toSend = items.filter(x => x.emailValid && x._selected);
+  const toSend = items.filter(x => x.emailValid && x.conCompensi && x._selected);
+  const esclusiSenza = items.filter(x => !x.conCompensi).map(x => x.dealer);
   if (!toSend.length){
     alert("Nessun negozio selezionato con email valida.");
     return;
@@ -2474,6 +2525,9 @@ async function startBulkSend(items){
 
   const monthLabelNow = monthLabel || currentMonthIt() || "";
   logLine("info", `Avvio invio di ${toSend.length} mail (mese: ${monthLabelNow}).`);
+  if (esclusiSenza.length){
+    logLine("warn", `Esclusi perché senza compensi (${esclusiSenza.length}): ${esclusiSenza.join(", ")}`);
+  }
 
   let ok = 0, err = 0;
   for (let i = 0; i < toSend.length; i++){
@@ -2501,8 +2555,8 @@ async function startBulkSend(items){
   sendStatusLabel.textContent = bulkAbort ? "Interrotto" : "Completato";
   bulkBtnCancel.style.display = "none";
   bulkBtnClose.style.display = "inline-block";
-  bulkFootHint.textContent = `Risultato: ${ok} inviate, ${err} errori${bulkAbort ? ", interrotto" : ""}.`;
-  logLine("info", `Totale: ${ok} ok, ${err} errori.`);
+  bulkFootHint.textContent = `Risultato: ${ok} inviate, ${err} errori${esclusiSenza.length ? `, ${esclusiSenza.length} senza compensi esclusi` : ""}${bulkAbort ? ", interrotto" : ""}.`;
+  logLine("info", `Totale: ${ok} ok, ${err} errori` + (esclusiSenza.length ? `, ${esclusiSenza.length} esclusi senza compensi.` : "."));
 }
 
 bulkModalClose.addEventListener("click", closeBulkModal);
